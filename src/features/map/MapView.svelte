@@ -14,6 +14,14 @@
   let animator = new VehicleAnimator()
   let rafId: number
   let unsubscribe: () => void
+  let styleLoaded = false
+  let showNames = true
+
+  $: if (styleLoaded) setNamesVisible(showNames)
+
+  function setNamesVisible(show: boolean): void {
+    map.setLayoutProperty('vehicles-layer', 'text-field', show ? ['get', 'name'] : '')
+  }
 
   const STATUS_COLORS: Record<Vehicle['status'], string> = {
     active: '#22c55e',
@@ -144,6 +152,7 @@
       map.on('mouseenter', 'vehicles-layer', () => (map.getCanvas().style.cursor = 'pointer'))
       map.on('mouseleave', 'vehicles-layer', () => (map.getCanvas().style.cursor = ''))
 
+      styleLoaded = true
       rafId = requestAnimationFrame(renderFrame)
     })
 
@@ -159,4 +168,12 @@
   })
 </script>
 
-<div bind:this={mapContainer} class="h-full w-full"></div>
+<div class="relative h-full w-full">
+  <div class="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 shadow-lg backdrop-blur">
+    <label class="flex items-center gap-2">
+      <input type="checkbox" bind:checked={showNames} class="h-3.5 w-3.5 accent-emerald-500" />
+      Show vehicle names
+    </label>
+  </div>
+  <div bind:this={mapContainer} class="h-full w-full"></div>
+</div>
