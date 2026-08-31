@@ -15,7 +15,7 @@
   export let followedTarget: { type: 'vehicle' | 'contact'; id: string } | undefined = undefined
   export let onStopFollow: () => void = () => {}
   export let multiSelectMode = false
-  export let multiSelectedIds: Set<string> = new Set()
+  export let ringHighlightIds: Set<string> = new Set()
   export let onToggleVehicleMultiSelect: (id: string) => void = () => {}
   export let onMapBackgroundClick: (point: [number, number]) => void = () => {}
 
@@ -236,7 +236,7 @@
     return {
       type: 'FeatureCollection' as const,
       features: states
-        .filter((s) => multiSelectedIds.has(s.id))
+        .filter((s) => ringHighlightIds.has(s.id))
         .map((s) => ({
           type: 'Feature' as const,
           geometry: { type: 'Point' as const, coordinates: [s.lng, s.lat] },

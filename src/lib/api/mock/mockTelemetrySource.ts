@@ -137,18 +137,21 @@ export class MockTelemetrySource implements TelemetrySource {
               type: "intercept",
               contactId: command.contactId,
               mode: command.mode,
+              missionId: command.missionId,
             }
           : command.type === "orbit-contact"
             ? {
                 type: "orbit-contact",
                 contactId: command.contactId,
                 radiusDeg: command.radiusDeg,
+                missionId: command.missionId,
               }
             : command.type === "hold-position"
               ? {
                   type: "hold-position",
                   point: command.point,
                   embargoLine: command.embargoLine,
+                  missionId: command.missionId,
                 }
               : { type: "patrol" };
     this.orders.set(vehicleId, order);
@@ -170,8 +173,10 @@ export class MockTelemetrySource implements TelemetrySource {
     if (order.type === "return-to-base")
       return this.simulateReturnToBase(v, order);
     if (order.type === "intercept") return this.simulateIntercept(v, order);
-    if (order.type === "orbit-contact") return this.simulateOrbitContact(v, order);
-    if (order.type === "hold-position") return this.simulateHoldPosition(v, order);
+    if (order.type === "orbit-contact")
+      return this.simulateOrbitContact(v, order);
+    if (order.type === "hold-position")
+      return this.simulateHoldPosition(v, order);
 
     const circlePatrol = CIRCLE_PATROLS.find((patrol) =>
       patrol.vehicles.some((cv) => cv.id === v.id),
@@ -414,8 +419,11 @@ export class MockTelemetrySource implements TelemetrySource {
         (c) =>
           c.status === "unidentified" &&
           !alreadyHandled.has(c.id) &&
-          distancePointToSegment(c.position, order.embargoLine![0], order.embargoLine![1]) <
-            EMBARGO_DETECT_DEG,
+          distancePointToSegment(
+            c.position,
+            order.embargoLine![0],
+            order.embargoLine![1],
+          ) < EMBARGO_DETECT_DEG,
       );
       if (approaching) {
         const interceptOrder: VehicleOrder = {

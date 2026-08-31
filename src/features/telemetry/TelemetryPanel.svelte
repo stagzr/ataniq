@@ -6,6 +6,7 @@
   export let onReturnToBase: (id: string) => void = () => {}
   export let isFollowing = false
   export let onToggleFollow: (id: string) => void = () => {}
+  export let onOpenMission: (missionId: string) => void = () => {}
 
   const ORDER_LABEL: Record<Vehicle['order']['type'], string> = {
     patrol: 'On patrol',
@@ -14,15 +15,32 @@
     'orbit-contact': 'Orbiting contact',
     'hold-position': 'Holding station',
   }
+
+  function getMissionId(order: Vehicle['order']): string | undefined {
+    return 'missionId' in order ? order.missionId : undefined
+  }
+
+  $: missionId = vehicle ? getMissionId(vehicle.order) : undefined
 </script>
 
 {#if vehicle}
   <div class="flex flex-col gap-3 p-4 text-sm text-slate-200">
     <div class="flex items-center justify-between">
       <h2 class="text-base font-semibold text-white">{vehicle.name}</h2>
-      <span class="rounded bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-300">
-        {ORDER_LABEL[vehicle.order.type]}
-      </span>
+      {#if missionId}
+        <button
+          type="button"
+          class="flex items-center gap-1 rounded bg-sky-600/80 px-2 py-0.5 text-xs font-medium text-white hover:bg-sky-500"
+          onclick={() => onOpenMission(missionId!)}
+        >
+          {ORDER_LABEL[vehicle.order.type]}
+          <span aria-hidden="true">▸</span>
+        </button>
+      {:else}
+        <span class="rounded bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-300">
+          {ORDER_LABEL[vehicle.order.type]}
+        </span>
+      {/if}
     </div>
     <div class="grid grid-cols-2 gap-3">
       <div class="rounded bg-slate-800/60 p-2">

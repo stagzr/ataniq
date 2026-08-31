@@ -28,24 +28,57 @@ export type VehicleOrder =
       mode: "inspect" | "attack";
       // order to resume once the intercept resolves (e.g. an embargo station)
       returnOrder?: VehicleOrder;
+      missionId?: string;
     }
-  | { type: "orbit-contact"; contactId: string; radiusDeg: number }
+  | {
+      type: "orbit-contact";
+      contactId: string;
+      radiusDeg: number;
+      missionId?: string;
+    }
   | {
       type: "hold-position";
       point: [number, number];
       embargoLine?: [[number, number], [number, number]];
+      missionId?: string;
     };
 
 export type VehicleCommand =
   | { type: "return-to-base" }
-  | { type: "intercept"; contactId: string; mode: "inspect" | "attack" }
-  | { type: "orbit-contact"; contactId: string; radiusDeg: number }
+  | {
+      type: "intercept";
+      contactId: string;
+      mode: "inspect" | "attack";
+      missionId?: string;
+    }
+  | {
+      type: "orbit-contact";
+      contactId: string;
+      radiusDeg: number;
+      missionId?: string;
+    }
   | {
       type: "hold-position";
       point: [number, number];
       embargoLine?: [[number, number], [number, number]];
+      missionId?: string;
     }
   | { type: "resume-patrol" };
+
+export type FormationActionType =
+  | "attack"
+  | "inspect"
+  | "circle"
+  | "line"
+  | "embargo";
+
+export interface FormationMission {
+  id: string;
+  action: FormationActionType;
+  vehicleIds: string[];
+  contactId?: string;
+  createdAt: number;
+}
 
 export type MissionStatus =
   | "planned"

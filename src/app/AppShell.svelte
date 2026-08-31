@@ -7,12 +7,14 @@
   import VideoPanel from '../features/video/VideoPanel.svelte'
   import ContactPanel from '../features/contacts/ContactPanel.svelte'
   import MultiActionPanel from '../features/fleet/MultiActionPanel.svelte'
+  import MissionPanel from '../features/fleet/MissionPanel.svelte'
   import type { FormationAction } from '../features/fleet/MultiActionPanel.svelte'
   import { vehicleStore } from '../features/fleet/vehicleStore'
   import { alertStore } from '../features/alerts/alertStore'
   import { contactStore } from '../features/contacts/contactStore'
   import { findAssignedVehicle, findNearestVehicle, nearestVehicleTo } from '../features/contacts/dispatch'
   import { computeCirclePositions, computeLinePositions } from '../lib/formations'
+  import type { FormationMission } from '../lib/types'
 
   const CIRCLE_RADIUS_DEG = 0.05
   const LINE_EMBARGO_RADIUS_DEG = 0.04
@@ -20,17 +22,27 @@
 
   let selectedVehicleId: string | undefined = undefined
   let selectedContactId: string | undefined = undefined
+  let selectedMissionId: string | undefined = undefined
   let followedTarget: { type: 'vehicle' | 'contact'; id: string } | undefined = undefined
   let multiActionMode = false
   let multiSelectedIds: Set<string> = new Set()
   let activeFormationAction: FormationAction | undefined = undefined
   let lineStart: [number, number] | undefined = undefined
+  let missions: Record<string, FormationMission> = {}
 
   $: vehicles = $vehicleStore
   $: alerts = $alertStore
   $: contacts = $contactStore
   $: selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId)
   $: selectedContact = contacts.find((c) => c.id === selectedContactId)
+  $: selectedMission = selectedMissionId ? missions[selectedMissionId] : undefined
+  $: missionVehicles = selectedMission ? vehicles.filter((v) => selectedMission!.vehicleIds.includes(v.id)) : []
+  $: missionContact = selectedMission?.contactId ? contacts.find((c) => c.id === selectedMission!.contactId) : undefined
+  $: ringHighlightIds = multiActionMode
+    ? multiSelectedIds
+    : selectedMission
+      ? new Set(selectedMission.vehicleIds)
+      : new Set<string>()
   $: videoVehicle = selectedContact
     ? (findAssignedVehicle(vehicles, selectedContact.id) ?? nearestVehicleTo(vehicles, selectedContact.position))
     : selectedVehicle
@@ -38,6 +50,7 @@
   function selectVehicle(id: string) {
     selectedVehicleId = id
     selectedContactId = undefined
+    selectedMissionId = undefined
   }
 
   function selectContact(id: string) {
@@ -47,6 +60,13 @@
     }
     selectedContactId = id
     selectedVehicleId = undefined
+    selectedMissionId = undefined
+  }
+
+  function openMission(id: string) {
+    selectedMissionId = id
+    selectedVehicleId = undefined
+    selectedContactId = undefined
   }
 
   function handleReturnToBase(vehicleId: string) {
@@ -95,13 +115,16 @@
   }
 
   function dispatchFormationToContact(contactId: string, action: 'attack' | 'inspect') {
-    for (const id of multiSelectedIds) {
+    const missionId = `mission-${Date.now()}`
+    const vehicleIds = [...multiSelectedIds]
+    for (const id of vehicleIds) {
       if (action === 'attack') {
-        vehicleStore.sendCommand(id, { type: 'intercept', contactId, mode: 'attack' })
+        vehicleStore.sendCommand(id, { type: 'intercept', contactId, mode: 'attack', missionId })
       } else {
-        vehicleStore.sendCommand(id, { type: 'orbit-contact', contactId, radiusDeg: INSPECT_ORBIT_RADIUS_DEG })
+        vehicleStore.sendCommand(id, { type: 'orbit-contact', contactId, radiusDeg: INSPECT_ORBIT_RADIUS_DEG, missionId })
       }
     }
+    missions = { ...missions, [missionId]: { id: missionId, action, vehicleIds, contactId, createdAt: Date.now() } }
     multiActionMode = false
     resetMultiAction()
   }
@@ -111,8 +134,10 @@
     const ids = [...multiSelectedIds]
 
     if (activeFormationAction === 'circle') {
+      const missionId = `mission-${Date.now()}`
       const points = computeCirclePositions(point, CIRCLE_RADIUS_DEG, ids.length)
-      ids.forEach((id, i) => vehicleStore.sendCommand(id, { type: 'hold-position', point: points[i] }))
+      ids.forEach((id, i) => vehicleStore.sendCommand(id, { type: 'hold-position', point: points[i], missionId }))
+      missions = { ...missions, [missionId]: { id: missionId, action: 'circle', vehicleIds: ids, createdAt: Date.now() } }
       multiActionMode = false
       resetMultiAction()
       return
@@ -123,12 +148,17 @@
         lineStart = point
         return
       }
+      const missionId = `mission-${Date.now()}`
       const points = computeLinePositions(lineStart, point, ids.length)
       const embargoLine: [[number, number], [number, number]] | undefined =
         activeFormationAction === 'embargo' ? [lineStart, point] : undefined
       ids.forEach((id, i) =>
-        vehicleStore.sendCommand(id, { type: 'hold-position', point: points[i], embargoLine }),
+        vehicleStore.sendCommand(id, { type: 'hold-position', point: points[i], embargoLine, missionId }),
       )
+      missions = {
+        ...missions,
+        [missionId]: { id: missionId, action: activeFormationAction, vehicleIds: ids, createdAt: Date.now() },
+      }
       multiActionMode = false
       resetMultiAction()
     }
@@ -177,7 +207,7 @@
       {followedTarget}
       onStopFollow={() => (followedTarget = undefined)}
       multiSelectMode={multiActionMode}
-      {multiSelectedIds}
+      {ringHighlightIds}
       onToggleVehicleMultiSelect={toggleVehicleMultiSelect}
       onMapBackgroundClick={handleMapBackgroundClick}
     />
@@ -195,7 +225,7 @@
   <aside class="flex flex-col divide-y divide-slate-800 overflow-y-auto border-l border-slate-800">
     <section>
       <h2 class="px-4 pt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {multiActionMode ? 'Multi-action' : selectedContact ? 'Contact' : 'Telemetry'}
+        {multiActionMode ? 'Multi-action' : selectedMission ? 'Mission area' : selectedContact ? 'Contact' : 'Telemetry'}
       </h2>
       {#if multiActionMode}
         <MultiActionPanel
@@ -203,6 +233,8 @@
           activeAction={activeFormationAction}
           onSelectAction={selectFormationAction}
         />
+      {:else if selectedMission}
+        <MissionPanel mission={selectedMission} vehicles={missionVehicles} contact={missionContact} />
       {:else if selectedContact}
         <ContactPanel
           contact={selectedContact}
@@ -217,6 +249,7 @@
           onReturnToBase={handleReturnToBase}
           isFollowing={followedTarget?.type === 'vehicle' && followedTarget.id === selectedVehicle?.id}
           onToggleFollow={toggleFollowVehicle}
+          onOpenMission={openMission}
         />
       {/if}
     </section>
