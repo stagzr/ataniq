@@ -20,6 +20,8 @@ type WorldMessage =
   | { kind: "intercept-marker"; marker: InterceptMarker }
   | { kind: "command"; vehicleId: string; command: VehicleCommand }
   | { kind: "mission-add"; mission: FormationMission }
+  | { kind: "mission-update"; mission: FormationMission }
+  | { kind: "mission-remove"; missionId: string }
   | { kind: "request-missions" }
   | { kind: "missions-snapshot"; missions: FormationMission[] };
 
@@ -112,6 +114,14 @@ class World {
         this.missions.set(msg.mission.id, msg.mission);
         this.notifyMissions();
         break;
+      case "mission-update":
+        this.missions.set(msg.mission.id, msg.mission);
+        this.notifyMissions();
+        break;
+      case "mission-remove":
+        this.missions.delete(msg.missionId);
+        this.notifyMissions();
+        break;
       case "request-missions":
         if (this.missions.size) {
           this.channel.postMessage({
@@ -166,6 +176,18 @@ class World {
   addMission(mission: FormationMission): void {
     this.missions.set(mission.id, mission);
     this.channel.postMessage({ kind: "mission-add", mission });
+    this.notifyMissions();
+  }
+
+  updateMission(mission: FormationMission): void {
+    this.missions.set(mission.id, mission);
+    this.channel.postMessage({ kind: "mission-update", mission });
+    this.notifyMissions();
+  }
+
+  removeMission(missionId: string): void {
+    this.missions.delete(missionId);
+    this.channel.postMessage({ kind: "mission-remove", missionId });
     this.notifyMissions();
   }
 }

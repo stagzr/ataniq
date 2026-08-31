@@ -8,6 +8,7 @@
   export let isFollowing = false
   export let onToggleFollow: (id: string) => void = () => {}
   export let onOpenMission: (missionId: string) => void = () => {}
+  export let onAbortCurrentMission: (vehicle: Vehicle) => void = () => {}
 
   const ORDER_LABEL: Record<Vehicle['order']['type'], string> = {
     patrol: 'On patrol',
@@ -89,6 +90,15 @@
         Return to base
       </button>
     </div>
+    {#if missionId}
+      <button
+        type="button"
+        class="rounded border border-red-900/70 bg-red-950/50 px-3 py-2 text-xs font-medium text-red-200 hover:bg-red-900/70"
+        onclick={() => onAbortCurrentMission(vehicle)}
+      >
+        Abort current mission for this drone
+      </button>
+    {/if}
   </div>
 {:else}
   <div class="p-4 text-sm text-slate-500">Select a vehicle to see telemetry.</div>

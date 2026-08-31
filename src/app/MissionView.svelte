@@ -27,6 +27,26 @@
     contactStore.destroy()
     missionStore.destroy()
   })
+
+  function abortMission() {
+    if (!mission) return
+    mission.vehicleIds.forEach((vehicleId) => abortVehicleToIdle(vehicleId))
+    missionStore.removeMission(mission.id)
+  }
+
+  function abortVehicleMission(_mission: NonNullable<typeof mission>, vehicleId: string) {
+    if (!mission) return
+    abortVehicleToIdle(vehicleId)
+    const remainingIds = mission.vehicleIds.filter((id) => id !== vehicleId)
+    if (remainingIds.length) missionStore.updateMission({ ...mission, vehicleIds: remainingIds })
+    else missionStore.removeMission(mission.id)
+  }
+
+  function abortVehicleToIdle(vehicleId: string) {
+    const vehicle = vehicles.find((v) => v.id === vehicleId)
+    if (!vehicle) return
+    vehicleStore.sendCommand(vehicleId, { type: 'hold-position', point: vehicle.position })
+  }
 </script>
 
 <div class="grid h-screen grid-cols-[1fr_360px] grid-rows-[auto_1fr] bg-slate-950 text-slate-100">
@@ -43,7 +63,7 @@
     <section>
       <h2 class="px-4 pt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Mission area</h2>
       {#if mission}
-        <MissionPanel {mission} vehicles={missionVehicles} contact={missionContact} />
+        <MissionPanel {mission} vehicles={missionVehicles} contact={missionContact} onAbortMission={abortMission} onAbortVehicle={abortVehicleMission} />
       {:else}
         <p class="p-4 text-sm text-slate-500">Waiting for mission data…</p>
       {/if}

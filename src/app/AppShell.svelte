@@ -96,6 +96,32 @@
     vehicleStore.sendCommand(vehicleId, { type: 'return-to-base' })
   }
 
+  function abortMission(mission: NonNullable<typeof selectedMission>) {
+    mission.vehicleIds.forEach((vehicleId) => abortVehicleToIdle(vehicleId))
+    missionStore.removeMission(mission.id)
+    if (selectedMissionId === mission.id) selectedMissionId = undefined
+  }
+
+  function abortVehicleMission(mission: NonNullable<typeof selectedMission>, vehicleId: string) {
+    abortVehicleToIdle(vehicleId)
+    const remainingIds = mission.vehicleIds.filter((id) => id !== vehicleId)
+    if (remainingIds.length) missionStore.updateMission({ ...mission, vehicleIds: remainingIds })
+    else abortMission(mission)
+  }
+
+  function abortCurrentVehicleMission(vehicle: NonNullable<typeof selectedVehicle>) {
+    const missionId = 'missionId' in vehicle.order ? vehicle.order.missionId : undefined
+    const mission = missionId ? missions[missionId] : undefined
+    if (mission) abortVehicleMission(mission, vehicle.id)
+    else abortVehicleToIdle(vehicle.id)
+  }
+
+  function abortVehicleToIdle(vehicleId: string) {
+    const vehicle = vehicles.find((v) => v.id === vehicleId)
+    if (!vehicle) return
+    vehicleStore.sendCommand(vehicleId, { type: 'hold-position', point: vehicle.position })
+  }
+
   function dispatchToContact(contactId: string, mode: 'inspect' | 'attack') {
     const contact = contacts.find((c) => c.id === contactId)
     if (!contact) return
@@ -275,7 +301,13 @@
           onSelectAction={selectFormationAction}
         />
       {:else if selectedMission}
-        <MissionPanel mission={selectedMission} vehicles={missionVehicles} contact={missionContact} />
+        <MissionPanel
+          mission={selectedMission}
+          vehicles={missionVehicles}
+          contact={missionContact}
+          onAbortMission={abortMission}
+          onAbortVehicle={abortVehicleMission}
+        />
       {:else if selectedContact}
         <ContactPanel
           contact={selectedContact}
@@ -292,6 +324,7 @@
           isFollowing={followedTarget?.type === 'vehicle' && followedTarget.id === selectedVehicle?.id}
           onToggleFollow={toggleFollowVehicle}
           onOpenMission={openMission}
+          onAbortCurrentMission={abortCurrentVehicleMission}
         />
       {/if}
     </section>

@@ -22,7 +22,15 @@ function createMissionStore() {
     world.addMission(mission);
   }
 
-  return { subscribe, init, destroy, addMission };
+  function updateMission(mission: FormationMission) {
+    world.updateMission(mission);
+  }
+
+  function removeMission(missionId: string) {
+    world.removeMission(missionId);
+  }
+
+  return { subscribe, init, destroy, addMission, updateMission, removeMission };
 }
 
 export const missionStore = createMissionStore();

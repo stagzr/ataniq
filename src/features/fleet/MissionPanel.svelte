@@ -4,6 +4,8 @@
   export let mission: FormationMission | undefined = undefined
   export let vehicles: Vehicle[] = []
   export let contact: Contact | undefined = undefined
+  export let onAbortMission: (mission: FormationMission) => void = () => {}
+  export let onAbortVehicle: (mission: FormationMission, vehicleId: string) => void = () => {}
 
   const TITLE: Record<FormationMission['action'], string> = {
     attack: 'Attack mission',
@@ -30,14 +32,26 @@
   <div class="flex flex-col gap-3 p-4 text-sm text-slate-200">
     <div class="flex items-center justify-between">
       <h2 class="text-base font-semibold text-white">{TITLE[mission.action]}</h2>
-      <button
-        type="button"
-        class="rounded bg-slate-700 px-2 py-1 text-xs font-medium text-white hover:bg-slate-600"
-        title="Open this mission in a separate tab, without the fleet list"
-        onclick={() => window.open(`${location.pathname}${location.search}#mission=${mission!.id}`, '_blank')}
-      >
-        Open in new tab ↗
-      </button>
+      <div class="flex gap-1.5">
+        <button
+          type="button"
+          class="rounded bg-red-950/80 px-2 py-1 text-xs font-medium text-red-200 hover:bg-red-900"
+          title="Abort this mission and return every included boat to idle patrol"
+          onclick={() => {
+            if (window.confirm('Abort this mission and release all included boats?')) onAbortMission(mission!)
+          }}
+        >
+          Abort
+        </button>
+        <button
+          type="button"
+          class="rounded bg-slate-700 px-2 py-1 text-xs font-medium text-white hover:bg-slate-600"
+          title="Open this mission in a separate tab, without the fleet list"
+          onclick={() => window.open(`${location.pathname}${location.search}#mission=${mission!.id}`, '_blank')}
+        >
+          Open in new tab ↗
+        </button>
+      </div>
     </div>
     <p class="text-xs text-slate-400">{description}</p>
 
@@ -45,9 +59,17 @@
       <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Boats included</div>
       <ul class="flex flex-col gap-1">
         {#each vehicles as vehicle (vehicle.id)}
-          <li class="flex items-center justify-between rounded bg-slate-800/60 px-2 py-1.5 text-xs">
-            <span class="text-slate-200">{vehicle.name}</span>
+          <li class="flex items-center justify-between gap-2 rounded bg-slate-800/60 px-2 py-1.5 text-xs">
+            <span class="min-w-0 flex-1 truncate text-slate-200">{vehicle.name}</span>
             <span class="text-slate-500">{vehicle.status}</span>
+            <button
+              type="button"
+              class="rounded bg-slate-700 px-2 py-1 text-[10px] font-medium text-slate-200 hover:bg-slate-600"
+              title="Abort current mission for this drone"
+              onclick={() => onAbortVehicle(mission!, vehicle.id)}
+            >
+              Abort drone
+            </button>
           </li>
         {:else}
           <li class="rounded bg-slate-800/60 px-2 py-1.5 text-xs text-slate-500">No boats remaining in this mission.</li>
