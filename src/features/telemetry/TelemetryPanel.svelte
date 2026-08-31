@@ -11,6 +11,8 @@
     patrol: 'On patrol',
     'return-to-base': 'Returning to base',
     intercept: 'On intercept mission',
+    'orbit-contact': 'Orbiting contact',
+    'hold-position': 'Holding station',
   }
 </script>
 

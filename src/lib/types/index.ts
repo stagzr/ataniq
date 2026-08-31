@@ -22,11 +22,29 @@ export interface Vehicle {
 export type VehicleOrder =
   | { type: "patrol" }
   | { type: "return-to-base" }
-  | { type: "intercept"; contactId: string; mode: "inspect" | "attack" };
+  | {
+      type: "intercept";
+      contactId: string;
+      mode: "inspect" | "attack";
+      // order to resume once the intercept resolves (e.g. an embargo station)
+      returnOrder?: VehicleOrder;
+    }
+  | { type: "orbit-contact"; contactId: string; radiusDeg: number }
+  | {
+      type: "hold-position";
+      point: [number, number];
+      embargoLine?: [[number, number], [number, number]];
+    };
 
 export type VehicleCommand =
   | { type: "return-to-base" }
   | { type: "intercept"; contactId: string; mode: "inspect" | "attack" }
+  | { type: "orbit-contact"; contactId: string; radiusDeg: number }
+  | {
+      type: "hold-position";
+      point: [number, number];
+      embargoLine?: [[number, number], [number, number]];
+    }
   | { type: "resume-patrol" };
 
 export type MissionStatus =

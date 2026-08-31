@@ -14,6 +14,10 @@
   export let onSelectContact: (id: string) => void = () => {}
   export let followedTarget: { type: 'vehicle' | 'contact'; id: string } | undefined = undefined
   export let onStopFollow: () => void = () => {}
+  export let multiSelectMode = false
+  export let multiSelectedIds: Set<string> = new Set()
+  export let onToggleVehicleMultiSelect: (id: string) => void = () => {}
+  export let onMapBackgroundClick: (point: [number, number]) => void = () => {}
 
   let mapContainer: HTMLDivElement
   let map: maplibregl.Map
@@ -228,14 +232,29 @@
     source?.setData(toInterceptMarkerFeatureCollection(interceptMarkers) as any)
   }
 
+  function toMultiSelectFeatureCollection(states: ReturnType<VehicleAnimator['getInterpolatedState']>) {
+    return {
+      type: 'FeatureCollection' as const,
+      features: states
+        .filter((s) => multiSelectedIds.has(s.id))
+        .map((s) => ({
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [s.lng, s.lat] },
+          properties: {},
+        })),
+    }
+  }
+
   function renderFrame(now: number) {
     const states = animator.getInterpolatedState(now)
     const vehiclesSource = map?.getSource('vehicles') as maplibregl.GeoJSONSource | undefined
     const trailsSource = map?.getSource('trails') as maplibregl.GeoJSONSource | undefined
     const destinationsSource = map?.getSource('destinations') as maplibregl.GeoJSONSource | undefined
+    const multiSelectSource = map?.getSource('multiselect-rings') as maplibregl.GeoJSONSource | undefined
     vehiclesSource?.setData(toFeatureCollection(states) as any)
     trailsSource?.setData(toTrailFeatureCollection(states) as any)
     destinationsSource?.setData(toDestinationFeatureCollection(states) as any)
+    multiSelectSource?.setData(toMultiSelectFeatureCollection(states) as any)
 
     if (followedTarget) {
       let position: [number, number] | undefined
@@ -324,6 +343,19 @@
           'line-width': 1.5,
           'line-opacity': 0.6,
           'line-dasharray': [1, 1.5],
+        },
+      })
+
+      map.addSource('multiselect-rings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: 'multiselect-rings-layer',
+        type: 'circle',
+        source: 'multiselect-rings',
+        paint: {
+          'circle-radius': 14,
+          'circle-color': 'transparent',
+          'circle-stroke-color': '#38bdf8',
+          'circle-stroke-width': 2,
         },
       })
 
@@ -418,7 +450,9 @@
 
       map.on('click', 'vehicles-layer', (e: maplibregl.MapLayerMouseEvent) => {
         const id = e.features?.[0]?.properties?.id
-        if (id) onSelectVehicle(id)
+        if (!id) return
+        if (multiSelectMode) onToggleVehicleMultiSelect(id)
+        else onSelectVehicle(id)
       })
       map.on('click', 'contacts-layer', (e: maplibregl.MapLayerMouseEvent) => {
         const id = e.features?.[0]?.properties?.id
@@ -428,6 +462,12 @@
       map.on('mouseleave', 'vehicles-layer', () => (map.getCanvas().style.cursor = ''))
       map.on('mouseenter', 'contacts-layer', () => (map.getCanvas().style.cursor = 'pointer'))
       map.on('mouseleave', 'contacts-layer', () => (map.getCanvas().style.cursor = ''))
+
+      // background clicks (not on a vehicle/contact) are used for formation placement
+      map.on('click', (e: maplibregl.MapMouseEvent) => {
+        const hits = map.queryRenderedFeatures(e.point, { layers: ['vehicles-layer', 'contacts-layer'] })
+        if (hits.length === 0) onMapBackgroundClick([e.lngLat.lng, e.lngLat.lat])
+      })
 
       // stop auto-centering as soon as the operator manually pans the map
       map.on('dragstart', () => {
