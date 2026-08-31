@@ -33,11 +33,16 @@
   let latestVehicles = new Map<string, Vehicle>()
   let vehiclePopup: maplibregl.Popup | undefined
   let interceptMarkers: InterceptMarker[] = []
+  let vehiclePulses: Array<{ id: string; vehicleId: string; startedAt: number }> = []
+  let lastPulseSelectedVehicleId: string | undefined = undefined
+  let lastPulseFollowedVehicleId: string | undefined = undefined
   let flashOn = true
 
   $: if (styleLoaded) setNamesVisible(showNames)
   $: if (styleLoaded) setSelectedVehicle(selectedVehicleId)
   $: if (styleLoaded) setSelectedContact(selectedContactId)
+  $: if (styleLoaded) triggerSelectedVehiclePulse(selectedVehicleId)
+  $: if (styleLoaded) triggerFollowedVehiclePulse(followedTarget)
 
   function setNamesVisible(show: boolean): void {
     map.setLayoutProperty('vehicles-layer', 'text-field', show ? ['get', 'name'] : '')
@@ -67,6 +72,21 @@
       'line-opacity',
       id ? ['case', ['==', ['get', 'id'], id], 0.9, 0.5] : 0.6,
     )
+  }
+
+  function triggerSelectedVehiclePulse(id: string | undefined): void {
+    if (id && id !== lastPulseSelectedVehicleId) addVehiclePulse(id)
+    lastPulseSelectedVehicleId = id
+  }
+
+  function triggerFollowedVehiclePulse(target: { type: 'vehicle' | 'contact'; id: string } | undefined): void {
+    const id = target?.type === 'vehicle' ? target.id : undefined
+    if (id && id !== lastPulseFollowedVehicleId) addVehiclePulse(id)
+    lastPulseFollowedVehicleId = id
+  }
+
+  function addVehiclePulse(vehicleId: string): void {
+    vehiclePulses = [...vehiclePulses, { id: `${vehicleId}-${performance.now()}`, vehicleId, startedAt: performance.now() }]
   }
 
   const STATUS_COLORS: Record<Vehicle['status'], string> = {
@@ -304,16 +324,38 @@
     }
   }
 
+  function toVehiclePulseFeatureCollection(states: ReturnType<VehicleAnimator['getInterpolatedState']>, now: number) {
+    const stateById = new Map(states.map((state) => [state.id, state]))
+    return {
+      type: 'FeatureCollection' as const,
+      features: vehiclePulses
+        .map((pulse) => {
+          const state = stateById.get(pulse.vehicleId)
+          if (!state) return undefined
+          const progress = Math.min(1, (now - pulse.startedAt) / 2000)
+          return {
+            type: 'Feature' as const,
+            geometry: { type: 'Point' as const, coordinates: [state.lng, state.lat] },
+            properties: { id: pulse.id, progress },
+          }
+        })
+        .filter((feature): feature is NonNullable<typeof feature> => Boolean(feature)),
+    }
+  }
+
   function renderFrame(now: number) {
     const states = animator.getInterpolatedState(now)
     const vehiclesSource = map?.getSource('vehicles') as maplibregl.GeoJSONSource | undefined
     const trailsSource = map?.getSource('trails') as maplibregl.GeoJSONSource | undefined
     const destinationsSource = map?.getSource('destinations') as maplibregl.GeoJSONSource | undefined
     const multiSelectSource = map?.getSource('multiselect-rings') as maplibregl.GeoJSONSource | undefined
+    const pulseSource = map?.getSource('vehicle-pulses') as maplibregl.GeoJSONSource | undefined
+    vehiclePulses = vehiclePulses.filter((pulse) => now - pulse.startedAt < 2000)
     vehiclesSource?.setData(toFeatureCollection(states) as any)
     trailsSource?.setData(toTrailFeatureCollection(states) as any)
     destinationsSource?.setData(toDestinationFeatureCollection(states) as any)
     multiSelectSource?.setData(toMultiSelectFeatureCollection(states) as any)
+    pulseSource?.setData(toVehiclePulseFeatureCollection(states, now) as any)
 
     if (followedTarget) {
       let position: [number, number] | undefined
@@ -416,6 +458,20 @@
           'circle-color': 'transparent',
           'circle-stroke-color': '#38bdf8',
           'circle-stroke-width': 2,
+        },
+      })
+
+      map.addSource('vehicle-pulses', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: 'vehicle-pulses-layer',
+        type: 'circle',
+        source: 'vehicle-pulses',
+        paint: {
+          'circle-radius': ['+', 12, ['*', ['get', 'progress'], 34]],
+          'circle-color': 'transparent',
+          'circle-stroke-color': '#38bdf8',
+          'circle-stroke-width': 3,
+          'circle-stroke-opacity': ['-', 0.85, ['*', ['get', 'progress'], 0.85]],
         },
       })
 

@@ -89,7 +89,9 @@
     if (!contact) return
     const nearest = findNearestVehicle(vehicles, contact)
     if (!nearest) return
-    vehicleStore.sendCommand(nearest.id, { type: 'intercept', contactId, mode })
+    const missionId = `mission-${Date.now()}`
+    vehicleStore.sendCommand(nearest.id, { type: 'intercept', contactId, mode, missionId })
+    missionStore.addMission({ id: missionId, action: mode, vehicleIds: [nearest.id], contactId, createdAt: Date.now() })
   }
 
   function toggleFollowVehicle(id: string) {
