@@ -9,16 +9,20 @@
   import { vehicleStore } from '../features/fleet/vehicleStore'
   import { alertStore } from '../features/alerts/alertStore'
   import { contactStore } from '../features/contacts/contactStore'
-  import { findNearestVehicle } from '../features/contacts/dispatch'
+  import { findAssignedVehicle, findNearestVehicle, nearestVehicleTo } from '../features/contacts/dispatch'
 
   let selectedVehicleId: string | undefined = undefined
   let selectedContactId: string | undefined = undefined
+  let followedTarget: { type: 'vehicle' | 'contact'; id: string } | undefined = undefined
 
   $: vehicles = $vehicleStore
   $: alerts = $alertStore
   $: contacts = $contactStore
   $: selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId)
   $: selectedContact = contacts.find((c) => c.id === selectedContactId)
+  $: videoVehicle = selectedContact
+    ? (findAssignedVehicle(vehicles, selectedContact.id) ?? nearestVehicleTo(vehicles, selectedContact.position))
+    : selectedVehicle
 
   function selectVehicle(id: string) {
     selectedVehicleId = id
@@ -40,6 +44,16 @@
     const nearest = findNearestVehicle(vehicles, contact)
     if (!nearest) return
     vehicleStore.sendCommand(nearest.id, { type: 'intercept', contactId, mode })
+  }
+
+  function toggleFollowVehicle(id: string) {
+    followedTarget =
+      followedTarget?.type === 'vehicle' && followedTarget.id === id ? undefined : { type: 'vehicle', id }
+  }
+
+  function toggleFollowContact(id: string) {
+    followedTarget =
+      followedTarget?.type === 'contact' && followedTarget.id === id ? undefined : { type: 'contact', id }
   }
 
   onMount(() => {
@@ -75,6 +89,8 @@
       onSelectVehicle={selectVehicle}
       {selectedContactId}
       onSelectContact={selectContact}
+      {followedTarget}
+      onStopFollow={() => (followedTarget = undefined)}
     />
   </main>
 
@@ -88,14 +104,21 @@
           contact={selectedContact}
           onInspect={(id) => dispatchToContact(id, 'inspect')}
           onAttack={(id) => dispatchToContact(id, 'attack')}
+          isFollowing={followedTarget?.type === 'contact' && followedTarget.id === selectedContact.id}
+          onToggleFollow={toggleFollowContact}
         />
       {:else}
-        <TelemetryPanel vehicle={selectedVehicle} onReturnToBase={handleReturnToBase} />
+        <TelemetryPanel
+          vehicle={selectedVehicle}
+          onReturnToBase={handleReturnToBase}
+          isFollowing={followedTarget?.type === 'vehicle' && followedTarget.id === selectedVehicle?.id}
+          onToggleFollow={toggleFollowVehicle}
+        />
       {/if}
     </section>
     <section class="p-3">
       <h2 class="pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Video</h2>
-      <VideoPanel vehicleId={selectedVehicleId} vehicleName={selectedVehicle?.name} />
+      <VideoPanel vehicleId={videoVehicle?.id} vehicleName={videoVehicle?.name} />
     </section>
     <section class="flex min-h-0 flex-1 flex-col p-3">
       <h2 class="pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Alerts</h2>

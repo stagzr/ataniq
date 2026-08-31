@@ -4,6 +4,8 @@
 
   export let vehicle: Vehicle | undefined = undefined
   export let onReturnToBase: (id: string) => void = () => {}
+  export let isFollowing = false
+  export let onToggleFollow: (id: string) => void = () => {}
 
   const ORDER_LABEL: Record<Vehicle['order']['type'], string> = {
     patrol: 'On patrol',
@@ -39,14 +41,23 @@
       </div>
     </div>
     <div class="text-xs text-slate-500">Updated {formatRelativeTime(vehicle.lastUpdate)}</div>
-    <button
-      type="button"
-      class="mt-2 rounded bg-slate-700 px-3 py-2 text-xs font-medium text-white hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
-      disabled={vehicle.order.type === 'return-to-base'}
-      onclick={() => onReturnToBase(vehicle.id)}
-    >
-      Return to base
-    </button>
+    <div class="flex gap-2">
+      <button
+        type="button"
+        class="flex-1 rounded px-3 py-2 text-xs font-medium text-white {isFollowing ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-slate-700 hover:bg-slate-600'}"
+        onclick={() => onToggleFollow(vehicle.id)}
+      >
+        {isFollowing ? 'Following' : 'Follow'}
+      </button>
+      <button
+        type="button"
+        class="flex-1 rounded bg-slate-700 px-3 py-2 text-xs font-medium text-white hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={vehicle.order.type === 'return-to-base'}
+        onclick={() => onReturnToBase(vehicle.id)}
+      >
+        Return to base
+      </button>
+    </div>
   </div>
 {:else}
   <div class="p-4 text-sm text-slate-500">Select a vehicle to see telemetry.</div>

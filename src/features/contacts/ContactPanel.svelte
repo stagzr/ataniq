@@ -5,6 +5,8 @@
   export let contact: Contact | undefined = undefined
   export let onInspect: (id: string) => void = () => {}
   export let onAttack: (id: string) => void = () => {}
+  export let isFollowing = false
+  export let onToggleFollow: (id: string) => void = () => {}
 
   const STATUS_LABEL: Record<Contact['status'], string> = {
     unidentified: 'Unidentified',
@@ -33,6 +35,14 @@
       </div>
     </div>
     <div class="text-xs text-slate-500">Updated {formatRelativeTime(contact.lastUpdate)}</div>
+
+    <button
+      type="button"
+      class="rounded px-3 py-2 text-xs font-medium text-white {isFollowing ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-slate-700 hover:bg-slate-600'}"
+      onclick={() => onToggleFollow(contact.id)}
+    >
+      {isFollowing ? 'Following' : 'Follow'}
+    </button>
 
     {#if contact.status === 'unidentified'}
       <div class="mt-2 flex gap-2">

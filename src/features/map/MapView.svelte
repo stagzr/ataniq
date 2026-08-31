@@ -12,6 +12,8 @@
   export let onSelectVehicle: (id: string) => void = () => {}
   export let selectedContactId: string | undefined = undefined
   export let onSelectContact: (id: string) => void = () => {}
+  export let followedTarget: { type: 'vehicle' | 'contact'; id: string } | undefined = undefined
+  export let onStopFollow: () => void = () => {}
 
   let mapContainer: HTMLDivElement
   let map: maplibregl.Map
@@ -234,6 +236,18 @@
     vehiclesSource?.setData(toFeatureCollection(states) as any)
     trailsSource?.setData(toTrailFeatureCollection(states) as any)
     destinationsSource?.setData(toDestinationFeatureCollection(states) as any)
+
+    if (followedTarget) {
+      let position: [number, number] | undefined
+      if (followedTarget.type === 'vehicle') {
+        const state = states.find((s) => s.id === followedTarget!.id)
+        if (state) position = [state.lng, state.lat]
+      } else {
+        position = latestContacts.find((c) => c.id === followedTarget!.id)?.position
+      }
+      if (position) map.setCenter(position)
+    }
+
     rafId = requestAnimationFrame(renderFrame)
   }
 
@@ -414,6 +428,11 @@
       map.on('mouseleave', 'vehicles-layer', () => (map.getCanvas().style.cursor = ''))
       map.on('mouseenter', 'contacts-layer', () => (map.getCanvas().style.cursor = 'pointer'))
       map.on('mouseleave', 'contacts-layer', () => (map.getCanvas().style.cursor = ''))
+
+      // stop auto-centering as soon as the operator manually pans the map
+      map.on('dragstart', () => {
+        if (followedTarget) onStopFollow()
+      })
 
       styleLoaded = true
       rafId = requestAnimationFrame(renderFrame)
