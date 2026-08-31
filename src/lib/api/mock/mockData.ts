@@ -3,7 +3,7 @@ import type { Mission, Vehicle } from "../../types";
 // Fictional patrol area in open water east of Gotland, mock only. Keep radius
 // well clear of Gotland's east coast (~0.9deg away) so vehicles stay at sea.
 export const PATROL_CENTER: [number, number] = [19.9, 57.5];
-export const PATROL_MAX_RADIUS_DEG = 0.28;
+export const PATROL_MAX_RADIUS_DEG = 0.42;
 const ORIGIN = PATROL_CENTER;
 
 const VEHICLE_NAMES = [
@@ -34,7 +34,7 @@ function seededRandom(seed: number) {
 
 export function randomPatrolPoint(rand: () => number): [number, number] {
   const angle = rand() * Math.PI * 2;
-  const radius = 0.03 + rand() * (PATROL_MAX_RADIUS_DEG - 0.05);
+  const radius = 0.08 + rand() * (PATROL_MAX_RADIUS_DEG - 0.1);
   return [
     PATROL_CENTER[0] + Math.cos(angle) * radius,
     PATROL_CENTER[1] + Math.sin(angle) * radius * 0.6,
@@ -53,8 +53,8 @@ export interface CirclePatrol {
 
 export const CIRCLE_PATROLS: CirclePatrol[] = [
   {
-    center: [PATROL_CENTER[0] - 0.12, PATROL_CENTER[1] + 0.08],
-    radiusDeg: 0.05,
+    center: [PATROL_CENTER[0] - 0.22, PATROL_CENTER[1] + 0.14],
+    radiusDeg: 0.09,
     angularSpeedDeg: 6,
     vehicles: [
       { id: "veh-1", startAngleDeg: 0 },
@@ -62,8 +62,8 @@ export const CIRCLE_PATROLS: CirclePatrol[] = [
     ],
   },
   {
-    center: [PATROL_CENTER[0] + 0.1, PATROL_CENTER[1] - 0.09],
-    radiusDeg: 0.05,
+    center: [PATROL_CENTER[0] + 0.2, PATROL_CENTER[1] - 0.16],
+    radiusDeg: 0.09,
     angularSpeedDeg: 6,
     vehicles: [
       { id: "veh-3", startAngleDeg: 0 },
@@ -97,7 +97,7 @@ export function createMockVehicles(): Vehicle[] {
   return VEHICLE_NAMES.map((name, i) => {
     const id = `veh-${i + 1}`;
     const angle = rand() * Math.PI * 2;
-    const radius = 0.03 + rand() * (PATROL_MAX_RADIUS_DEG - 0.05);
+    const radius = 0.08 + rand() * (PATROL_MAX_RADIUS_DEG - 0.1);
     const statusRoll = rand();
     const status: Vehicle["status"] =
       statusRoll > 0.92
