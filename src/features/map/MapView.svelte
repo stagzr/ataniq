@@ -4,6 +4,7 @@
   import { onDestroy, onMount } from 'svelte'
   import type { Contact, InterceptMarker, Vehicle } from '../../lib/types'
   import { getBaseLocation } from '../../lib/api/factory'
+  import { formatBattery, formatHeading, formatRelativeTime, formatSpeed } from '../../lib/formatters'
   import { VehicleAnimator } from './animation'
   import { vehicleStore } from '../fleet/vehicleStore'
   import { contactStore } from '../contacts/contactStore'
@@ -29,6 +30,8 @@
   let styleLoaded = false
   let showNames = true
   let latestContacts: Contact[] = []
+  let latestVehicles = new Map<string, Vehicle>()
+  let vehiclePopup: maplibregl.Popup | undefined
   let interceptMarkers: InterceptMarker[] = []
   let flashOn = true
 
@@ -79,6 +82,62 @@
     inspecting: '#38bdf8',
     identified: '#60a5fa',
     neutralized: '#475569',
+  }
+
+  const ORDER_LABEL: Record<Vehicle['order']['type'], string> = {
+    patrol: 'On patrol',
+    'return-to-base': 'Returning to base',
+    intercept: 'On intercept mission',
+    'orbit-contact': 'Orbiting contact',
+    'hold-position': 'Holding station',
+  }
+
+  function escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;')
+  }
+
+  function getVehicleFromFeature(feature: maplibregl.MapGeoJSONFeature | undefined): Vehicle | undefined {
+    const id = feature?.properties?.id
+    return typeof id === 'string' ? latestVehicles.get(id) : undefined
+  }
+
+  function getOrderDetail(vehicle: Vehicle): string {
+    if (vehicle.order.type === 'intercept') return `${vehicle.order.mode} ${vehicle.order.contactId}`
+    if (vehicle.order.type === 'orbit-contact') return vehicle.order.contactId
+    if (vehicle.order.type === 'return-to-base') return 'Base station'
+    if (vehicle.order.type === 'hold-position') return 'Station keeping'
+    return 'Routine patrol'
+  }
+
+  function renderVehiclePopup(vehicle: Vehicle): string {
+    return `
+      <div class="min-w-44 text-xs text-slate-800">
+        <div class="mb-1 flex items-center justify-between gap-3">
+          <div class="font-semibold text-slate-950">${escapeHtml(vehicle.name)}</div>
+          <div class="uppercase text-slate-600">${escapeHtml(vehicle.status)}</div>
+        </div>
+        <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+          <span class="text-slate-600">Speed</span><span class="font-mono text-slate-800">${formatSpeed(vehicle.speed)}</span>
+          <span class="text-slate-600">Heading</span><span class="font-mono text-slate-800">${formatHeading(vehicle.heading)}</span>
+          <span class="text-slate-600">Battery</span><span class="font-mono text-slate-800">${formatBattery(vehicle.battery)}</span>
+          <span class="text-slate-600">Signal</span><span class="font-mono text-slate-800">${Math.round(vehicle.connectivity)}%</span>
+          <span class="text-slate-600">Mission</span><span class="text-slate-800">${escapeHtml(ORDER_LABEL[vehicle.order.type])}</span>
+          <span class="text-slate-600">Target</span><span class="text-slate-800">${escapeHtml(getOrderDetail(vehicle))}</span>
+        </div>
+        <div class="mt-1 text-slate-700">Updated ${escapeHtml(formatRelativeTime(vehicle.lastUpdate))}</div>
+      </div>
+    `
+  }
+
+  function showVehiclePopup(e: maplibregl.MapLayerMouseEvent): void {
+    const vehicle = getVehicleFromFeature(e.features?.[0])
+    if (!vehicle) return
+    vehiclePopup?.setLngLat(e.lngLat).setHTML(renderVehiclePopup(vehicle)).addTo(map)
   }
 
   function buildArrowIcon(size: number): ImageData {
@@ -277,6 +336,7 @@
       center: [19.9, 57.5],
       zoom: 9,
     })
+    vehiclePopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 18, className: 'vehicle-hover-popup' })
 
     map.addImage('vehicle-arrow', buildArrowIcon(32), { sdf: true })
     map.addImage('contact-diamond', buildDiamondIcon(28), { sdf: true })
@@ -458,8 +518,15 @@
         const id = e.features?.[0]?.properties?.id
         if (id) onSelectContact(id)
       })
-      map.on('mouseenter', 'vehicles-layer', () => (map.getCanvas().style.cursor = 'pointer'))
-      map.on('mouseleave', 'vehicles-layer', () => (map.getCanvas().style.cursor = ''))
+      map.on('mouseenter', 'vehicles-layer', (e: maplibregl.MapLayerMouseEvent) => {
+        map.getCanvas().style.cursor = 'pointer'
+        showVehiclePopup(e)
+      })
+      map.on('mousemove', 'vehicles-layer', showVehiclePopup)
+      map.on('mouseleave', 'vehicles-layer', () => {
+        map.getCanvas().style.cursor = ''
+        vehiclePopup?.remove()
+      })
       map.on('mouseenter', 'contacts-layer', () => (map.getCanvas().style.cursor = 'pointer'))
       map.on('mouseleave', 'contacts-layer', () => (map.getCanvas().style.cursor = ''))
 
@@ -479,6 +546,7 @@
     })
 
     unsubscribeVehicles = vehicleStore.subscribe((vehicles) => {
+      latestVehicles = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
       if (vehicles.length) animator.update(vehicles)
     })
 
@@ -506,6 +574,7 @@
     clearInterval(flashTimer)
     unsubscribeVehicles?.()
     unsubscribeContacts?.()
+    vehiclePopup?.remove()
     map?.remove()
   })
 </script>
