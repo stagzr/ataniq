@@ -75,7 +75,7 @@
   onMount(() => {
     map = new maplibregl.Map({
       container: mapContainer,
-      style: 'https://demotiles.maplibre.org/style.json',
+      style: 'https://tiles.openfreemap.org/styles/liberty',
       center: [11.94, 57.7],
       zoom: 9,
     })
@@ -114,7 +114,7 @@
           'icon-allow-overlap': true,
           'icon-size': 0.8,
           'text-field': ['get', 'name'],
-          'text-font': ['Open Sans Semibold'],
+          'text-font': ['Noto Sans Bold'],
           'text-size': 11,
           'text-offset': [0, 1.2],
           'text-anchor': 'top',
