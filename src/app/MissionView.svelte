@@ -14,7 +14,6 @@
   $: mission = $missionStore[missionId]
   $: missionVehicles = mission ? vehicles.filter((v) => mission!.vehicleIds.includes(v.id)) : []
   $: missionContact = mission?.contactId ? contacts.find((c) => c.id === mission!.contactId) : undefined
-  $: videoVehicles = missionVehicles.map((v) => ({ id: v.id, name: v.name }))
   $: ringHighlightIds = mission ? new Set(mission.vehicleIds) : new Set<string>()
 
   onMount(() => {
@@ -51,7 +50,7 @@
     </section>
     <section class="p-3">
       <h2 class="pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Video</h2>
-      <VideoPanel vehicles={videoVehicles} />
+      <VideoPanel vehicles={missionVehicles} {contacts} />
     </section>
   </aside>
 </div>

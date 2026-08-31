@@ -1,9 +1,14 @@
 <script lang="ts">
   import { createVideoSource } from '../../lib/api/factory'
+  import type { VideoStreamVariant } from '../../lib/api/types'
+  import type { Contact, Vehicle } from '../../lib/types'
 
-  export let vehicles: { id: string; name: string }[] = []
+  export let vehicles: Vehicle[] = []
+  export let contacts: Contact[] = []
 
   const videoSource = createVideoSource()
+  const ARRIVED_CONTACT_DEG = 0.035
+  const STILL_SPEED_KNOTS = 0.5
 
   let activeId: string | undefined = undefined
   let layout: 'tabs' | 'grid' = 'tabs'
@@ -14,7 +19,28 @@
   }
 
   $: activeVehicle = vehicles.find((v) => v.id === activeId)
-  $: streamUrl = activeVehicle ? videoSource.getStreamUrl(activeVehicle.id) : undefined
+  $: streamUrl = activeVehicle ? getVehicleStreamUrl(activeVehicle) : undefined
+
+  function getVehicleStreamUrl(vehicle: Vehicle) {
+    return videoSource.getStreamUrl(vehicle.id, getVideoVariant(vehicle))
+  }
+
+  function getVideoVariant(vehicle: Vehicle): VideoStreamVariant {
+    if (isNearUnidentifiedContact(vehicle)) return 'arrived'
+    if (vehicle.speed <= STILL_SPEED_KNOTS || vehicle.order.type === 'hold-position') return 'still'
+    return 'default'
+  }
+
+  function isNearUnidentifiedContact(vehicle: Vehicle) {
+    return contacts.some(
+      (contact) =>
+        contact.status === 'unidentified' && distanceDeg(vehicle.position, contact.position) <= ARRIVED_CONTACT_DEG,
+    )
+  }
+
+  function distanceDeg(a: [number, number], b: [number, number]) {
+    return Math.hypot(a[0] - b[0], a[1] - b[1])
+  }
 
   // deterministic per-vehicle offset so identical looping clips don't look in sync in the grid
   function staggerStart(video: HTMLVideoElement, vehicleId: string) {
@@ -76,7 +102,7 @@
     {#each vehicles as vehicle (vehicle.id)}
       <div class="relative flex aspect-video items-center justify-center overflow-hidden rounded bg-black">
         <video
-          src={videoSource.getStreamUrl(vehicle.id)}
+          src={getVehicleStreamUrl(vehicle)}
           use:staggerStart={vehicle.id}
           autoplay
           loop
@@ -95,7 +121,7 @@
 {:else}
   <div class="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded bg-black">
     {#if streamUrl}
-      <video src={streamUrl} autoplay loop muted playsinline class="h-full w-full object-cover"></video>
+      <video src={streamUrl} use:staggerStart={activeVehicle?.id ?? ''} autoplay loop muted playsinline class="h-full w-full object-cover"></video>
       <div class="absolute left-2 top-2 flex items-center gap-1 rounded bg-black/60 px-2 py-1 text-xs text-red-400">
         <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500"></span>
         LIVE

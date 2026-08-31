@@ -47,9 +47,9 @@
     ? (findAssignedVehicle(vehicles, selectedContact.id) ?? nearestVehicleTo(vehicles, selectedContact.position))
     : selectedVehicle
   $: videoVehicles = selectedMission
-    ? missionVehicles.map((v) => ({ id: v.id, name: v.name }))
+    ? missionVehicles
     : videoVehicle
-      ? [{ id: videoVehicle.id, name: videoVehicle.name }]
+      ? [videoVehicle]
       : []
 
   function selectVehicle(id: string) {
@@ -264,7 +264,7 @@
     </section>
     <section class="p-3">
       <h2 class="pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Video</h2>
-      <VideoPanel vehicles={videoVehicles} />
+      <VideoPanel vehicles={videoVehicles} {contacts} />
     </section>
     <section class="flex min-h-0 flex-1 flex-col p-3">
       <h2 class="pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Alerts</h2>
