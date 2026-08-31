@@ -33,6 +33,9 @@
   let latestVehicles = new Map<string, Vehicle>()
   let vehiclePopup: maplibregl.Popup | undefined
   let interceptMarkers: InterceptMarker[] = []
+  let fallbackTiles: Array<{ key: string; src: string; left: number; top: number }> = []
+  let vehicleMarkers: Array<{ id: string; name: string; status: Vehicle['status']; x: number; y: number; heading: number }> = []
+  let contactMarkers: Array<{ id: string; label: string; status: Contact['status']; x: number; y: number }> = []
   let vehiclePulses: Array<{ id: string; vehicleId: string; startedAt: number }> = []
   let lastPulseSelectedVehicleId: string | undefined = undefined
   let lastPulseFollowedVehicleId: string | undefined = undefined
@@ -116,6 +119,8 @@
     },
     layers: [{ id: 'carto-light', type: 'raster', source: 'carto-light' }],
   }
+  const FALLBACK_TILE_ZOOM = 10
+  const FALLBACK_TILE_SIZE = 256
 
   const ORDER_LABEL: Record<Vehicle['order']['type'], string> = {
     patrol: 'On patrol',
@@ -356,6 +361,48 @@
     }
   }
 
+  function lngLatToWorldPoint(lng: number, lat: number, zoom: number) {
+    const scale = FALLBACK_TILE_SIZE * 2 ** zoom
+    const sin = Math.sin((lat * Math.PI) / 180)
+    return {
+      x: ((lng + 180) / 360) * scale,
+      y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale,
+    }
+  }
+
+  function updateHtmlOverlay(states: ReturnType<VehicleAnimator['getInterpolatedState']>) {
+    if (!mapContainer || !map) return
+    const rect = mapContainer.getBoundingClientRect()
+    const center = map.getCenter()
+    const centerWorld = lngLatToWorldPoint(center.lng, center.lat, FALLBACK_TILE_ZOOM)
+    const startX = Math.floor((centerWorld.x - rect.width / 2) / FALLBACK_TILE_SIZE) - 1
+    const endX = Math.floor((centerWorld.x + rect.width / 2) / FALLBACK_TILE_SIZE) + 1
+    const startY = Math.floor((centerWorld.y - rect.height / 2) / FALLBACK_TILE_SIZE) - 1
+    const endY = Math.floor((centerWorld.y + rect.height / 2) / FALLBACK_TILE_SIZE) + 1
+    const tiles: typeof fallbackTiles = []
+
+    for (let x = startX; x <= endX; x++) {
+      for (let y = startY; y <= endY; y++) {
+        tiles.push({
+          key: `${FALLBACK_TILE_ZOOM}-${x}-${y}`,
+          src: `https://a.basemaps.cartocdn.com/light_all/${FALLBACK_TILE_ZOOM}/${x}/${y}.png`,
+          left: x * FALLBACK_TILE_SIZE - centerWorld.x + rect.width / 2,
+          top: y * FALLBACK_TILE_SIZE - centerWorld.y + rect.height / 2,
+        })
+      }
+    }
+
+    fallbackTiles = tiles
+    vehicleMarkers = states.map((state) => {
+      const point = map.project([state.lng, state.lat])
+      return { id: state.id, name: state.name, status: state.status, x: point.x, y: point.y, heading: state.heading }
+    })
+    contactMarkers = latestContacts.map((contact) => {
+      const point = map.project(contact.position)
+      return { id: contact.id, label: contact.label, status: contact.status, x: point.x, y: point.y }
+    })
+  }
+
   function renderFrame(now: number) {
     const states = animator.getInterpolatedState(now)
     const vehiclesSource = map?.getSource('vehicles') as maplibregl.GeoJSONSource | undefined
@@ -369,6 +416,7 @@
     destinationsSource?.setData(toDestinationFeatureCollection(states) as any)
     multiSelectSource?.setData(toMultiSelectFeatureCollection(states) as any)
     pulseSource?.setData(toVehiclePulseFeatureCollection(states, now) as any)
+    updateHtmlOverlay(states)
 
     if (followedTarget) {
       let position: [number, number] | undefined
@@ -516,10 +564,11 @@
             'critical', STATUS_COLORS.critical,
             STATUS_COLORS.offline,
           ],
-          'icon-opacity': 1,
+          'icon-opacity': 0,
           'text-color': '#e2e8f0',
           'text-halo-color': '#0f172a',
           'text-halo-width': 1.2,
+          'text-opacity': 0,
         },
       })
 
@@ -548,9 +597,11 @@
             'identified', CONTACT_COLORS.identified,
             CONTACT_COLORS.neutralized,
           ],
+          'icon-opacity': 0,
           'text-color': '#fcd34d',
           'text-halo-color': '#0f172a',
           'text-halo-width': 1.2,
+          'text-opacity': 0,
         },
       })
 
@@ -658,5 +709,63 @@
     </div>
     <slot name="toolbar-extra" />
   </div>
-  <div bind:this={mapContainer} class="h-full w-full"></div>
+  <div class="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-slate-200">
+    {#each fallbackTiles as tile (tile.key)}
+      <img
+        alt=""
+        class="absolute h-64 w-64 select-none"
+        draggable="false"
+        src={tile.src}
+        style="left: {tile.left}px; top: {tile.top}px;"
+      />
+    {/each}
+  </div>
+  <div bind:this={mapContainer} class="absolute inset-0 z-0 h-full w-full"></div>
+  <div class="pointer-events-none absolute inset-0 z-5 overflow-hidden">
+    {#each vehicleMarkers as marker (marker.id)}
+      <button
+        type="button"
+        class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
+        style="left: {marker.x}px; top: {marker.y}px;"
+        onclick={() => (multiSelectMode ? onToggleVehicleMultiSelect(marker.id) : onSelectVehicle(marker.id))}
+      >
+        <span
+          class="mx-auto block h-0 w-0 border-x-8 border-b-18 border-x-transparent {marker.status === 'critical'
+            ? 'border-b-red-500'
+            : marker.status === 'warning'
+              ? 'border-b-amber-500'
+              : marker.status === 'offline'
+                ? 'border-b-slate-600'
+                : marker.status === 'idle'
+                  ? 'border-b-slate-400'
+                  : 'border-b-emerald-500'}"
+          style="transform: rotate({marker.heading}deg);"
+        ></span>
+        {#if showNames}
+          <span>{marker.name}</span>
+        {/if}
+      </button>
+    {/each}
+    {#each contactMarkers as marker (marker.id)}
+      <button
+        type="button"
+        class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 text-[11px] font-bold text-amber-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
+        style="left: {marker.x}px; top: {marker.y}px;"
+        onclick={() => onSelectContact(marker.id)}
+      >
+        <span
+          class="mx-auto block h-4 w-4 rotate-45 {marker.status === 'neutralized'
+            ? 'bg-slate-600'
+            : marker.status === 'identified'
+              ? 'bg-blue-400'
+              : marker.status === 'inspecting'
+                ? 'bg-sky-400'
+                : 'bg-amber-500'}"
+        ></span>
+        {#if showNames}
+          <span>{marker.label}</span>
+        {/if}
+      </button>
+    {/each}
+  </div>
 </div>
