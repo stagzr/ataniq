@@ -36,6 +36,7 @@
   $: selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId)
   $: selectedContact = contacts.find((c) => c.id === selectedContactId)
   $: selectedMission = selectedMissionId ? missions[selectedMissionId] : undefined
+  $: missionList = Object.values(missions).sort((a, b) => b.createdAt - a.createdAt)
   $: missionVehicles = selectedMission ? vehicles.filter((v) => selectedMission!.vehicleIds.includes(v.id)) : []
   $: missionContact = selectedMission?.contactId ? contacts.find((c) => c.id === selectedMission!.contactId) : undefined
   $: ringHighlightIds = multiActionMode
@@ -51,6 +52,11 @@
     : videoVehicle
       ? [videoVehicle]
       : []
+  $: visibleAlerts = selectedMission
+    ? alerts.filter((alert) => selectedMission.vehicleIds.includes(alert.source))
+    : selectedVehicle
+      ? alerts.filter((alert) => alert.source === selectedVehicle.id)
+      : alerts
 
   function selectVehicle(id: string) {
     selectedVehicleId = id
@@ -112,6 +118,10 @@
     if (next.has(id)) next.delete(id)
     else next.add(id)
     multiSelectedIds = next
+  }
+
+  function selectAllVehicles() {
+    multiSelectedIds = new Set(vehicles.map((vehicle) => vehicle.id))
   }
 
   function selectFormationAction(action: FormationAction) {
@@ -194,11 +204,15 @@
     <h2 class="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Fleet</h2>
     <VehicleList
       {vehicles}
+      missions={missionList}
       {selectedVehicleId}
+      {selectedMissionId}
       onSelect={selectVehicle}
+      onSelectMission={openMission}
       multiSelectMode={multiActionMode}
       {multiSelectedIds}
       onToggleMultiSelect={toggleVehicleMultiSelect}
+      onSelectAll={selectAllVehicles}
     />
   </aside>
 
@@ -268,7 +282,7 @@
     </section>
     <section class="flex min-h-0 flex-1 flex-col p-3">
       <h2 class="pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Alerts</h2>
-      <AlertsPanel {alerts} />
+      <AlertsPanel alerts={visibleAlerts} />
     </section>
   </aside>
 </div>
