@@ -1,10 +1,16 @@
-import type { Mission, Vehicle } from "../../types";
+import type { Contact, Mission, Vehicle } from "../../types";
 
 // Fictional patrol area in open water east of Gotland, mock only. Keep radius
 // well clear of Gotland's east coast (~0.9deg away) so vehicles stay at sea.
 export const PATROL_CENTER: [number, number] = [19.9, 57.5];
 export const PATROL_MAX_RADIUS_DEG = 0.42;
 const ORIGIN = PATROL_CENTER;
+
+// Home port / base station all vehicles can be recalled to.
+export const BASE_POSITION: [number, number] = [
+  PATROL_CENTER[0],
+  PATROL_CENTER[1] + 0.34,
+];
 
 const VEHICLE_NAMES = [
   "Osprey-01",
@@ -168,10 +174,29 @@ export function createMockVehicles(): Vehicle[] {
       connectivity: Math.round(60 + rand() * 40),
       lastUpdate: Date.now(),
       destination,
+      order: { type: "patrol" },
     };
   });
 }
 
+const CONTACT_NAMES = ["UNK-1", "UNK-2", "UNK-3"];
+
+export function createMockContacts(): Contact[] {
+  const rand = seededRandom(7);
+  return CONTACT_NAMES.map((label, i) => {
+    const position = randomPatrolPoint(rand);
+    return {
+      id: `contact-${i + 1}`,
+      label,
+      status: "unidentified" as const,
+      position,
+      heading: Math.round(rand() * 360),
+      speed: 4 + rand() * 10,
+      destination: randomPatrolPoint(rand),
+      lastUpdate: Date.now(),
+    };
+  });
+}
 
 export function createMockMissions(vehicles: Vehicle[]): Mission[] {
   return [

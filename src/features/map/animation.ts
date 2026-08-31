@@ -11,6 +11,7 @@ export interface AnimatedVehicleState {
   lat: number;
   heading: number;
   destination: [number, number];
+  onMission: boolean;
   trail: [number, number][];
 }
 
@@ -58,6 +59,7 @@ export class VehicleAnimator {
         lat: lerp(prevVehicle.position[1], v.position[1], t),
         heading: lerpAngle(prevVehicle.heading, v.heading, t),
         destination: v.destination,
+        onMission: v.order.type !== "patrol",
         trail: this.trails.get(v.id) ?? [],
       };
     });

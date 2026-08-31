@@ -2,23 +2,33 @@
   import * as maplibregl from 'maplibre-gl'
   import 'maplibre-gl/dist/maplibre-gl.css'
   import { onDestroy, onMount } from 'svelte'
-  import type { Vehicle } from '../../lib/types'
+  import type { Contact, InterceptMarker, Vehicle } from '../../lib/types'
+  import { getBaseLocation } from '../../lib/api/factory'
   import { VehicleAnimator } from './animation'
   import { vehicleStore } from '../fleet/vehicleStore'
+  import { contactStore } from '../contacts/contactStore'
 
   export let selectedVehicleId: string | undefined = undefined
   export let onSelectVehicle: (id: string) => void = () => {}
+  export let selectedContactId: string | undefined = undefined
+  export let onSelectContact: (id: string) => void = () => {}
 
   let mapContainer: HTMLDivElement
   let map: maplibregl.Map
   let animator = new VehicleAnimator()
   let rafId: number
-  let unsubscribe: () => void
+  let flashTimer: ReturnType<typeof setInterval>
+  let unsubscribeVehicles: () => void
+  let unsubscribeContacts: () => void
   let styleLoaded = false
   let showNames = true
+  let latestContacts: Contact[] = []
+  let interceptMarkers: InterceptMarker[] = []
+  let flashOn = true
 
   $: if (styleLoaded) setNamesVisible(showNames)
   $: if (styleLoaded) setSelectedVehicle(selectedVehicleId)
+  $: if (styleLoaded) setSelectedContact(selectedContactId)
 
   function setNamesVisible(show: boolean): void {
     map.setLayoutProperty('vehicles-layer', 'text-field', show ? ['get', 'name'] : '')
@@ -37,12 +47,32 @@
     )
   }
 
+  function setSelectedContact(id: string | undefined): void {
+    map.setPaintProperty(
+      'contact-destinations-layer',
+      'line-width',
+      id ? ['case', ['==', ['get', 'id'], id], 3, 1.5] : 1.5,
+    )
+    map.setPaintProperty(
+      'contact-destinations-layer',
+      'line-opacity',
+      id ? ['case', ['==', ['get', 'id'], id], 0.9, 0.5] : 0.6,
+    )
+  }
+
   const STATUS_COLORS: Record<Vehicle['status'], string> = {
     active: '#22c55e',
     idle: '#94a3b8',
     warning: '#f59e0b',
     critical: '#ef4444',
     offline: '#475569',
+  }
+
+  const CONTACT_COLORS: Record<Contact['status'], string> = {
+    unidentified: '#f59e0b',
+    inspecting: '#38bdf8',
+    identified: '#60a5fa',
+    neutralized: '#475569',
   }
 
   function buildArrowIcon(size: number): ImageData {
@@ -61,13 +91,62 @@
     return ctx.getImageData(0, 0, size, size)
   }
 
+  function buildDiamondIcon(size: number): ImageData {
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#fff'
+    ctx.beginPath()
+    ctx.moveTo(size / 2, 2)
+    ctx.lineTo(size - 2, size / 2)
+    ctx.lineTo(size / 2, size - 2)
+    ctx.lineTo(2, size / 2)
+    ctx.closePath()
+    ctx.fill()
+    return ctx.getImageData(0, 0, size, size)
+  }
+
+  function buildBaseIcon(size: number): ImageData {
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#fff'
+    ctx.beginPath()
+    ctx.moveTo(size / 2, 2)
+    ctx.lineTo(size - 4, size * 0.45)
+    ctx.lineTo(size - 4, size - 4)
+    ctx.lineTo(4, size - 4)
+    ctx.lineTo(4, size * 0.45)
+    ctx.closePath()
+    ctx.fill()
+    return ctx.getImageData(0, 0, size, size)
+  }
+
+  function buildCrossIcon(size: number): ImageData {
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')!
+    ctx.strokeStyle = '#fff'
+    ctx.lineWidth = size * 0.18
+    ctx.beginPath()
+    ctx.moveTo(4, 4)
+    ctx.lineTo(size - 4, size - 4)
+    ctx.moveTo(size - 4, 4)
+    ctx.lineTo(4, size - 4)
+    ctx.stroke()
+    return ctx.getImageData(0, 0, size, size)
+  }
+
   function toFeatureCollection(states: ReturnType<VehicleAnimator['getInterpolatedState']>) {
     return {
       type: 'FeatureCollection' as const,
       features: states.map((s) => ({
         type: 'Feature' as const,
         geometry: { type: 'Point' as const, coordinates: [s.lng, s.lat] },
-        properties: { id: s.id, name: s.name, status: s.status, heading: s.heading },
+        properties: { id: s.id, name: s.name, status: s.status, heading: s.heading, onMission: s.onMission },
       })),
     }
   }
@@ -102,6 +181,51 @@
     }
   }
 
+  function toContactFeatureCollection(contacts: Contact[]) {
+    return {
+      type: 'FeatureCollection' as const,
+      features: contacts.map((c) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: c.position },
+        properties: { id: c.id, label: c.label, status: c.status, heading: c.heading },
+      })),
+    }
+  }
+
+  function toContactDestinationFeatureCollection(contacts: Contact[]) {
+    return {
+      type: 'FeatureCollection' as const,
+      features: contacts.map((c) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'LineString' as const, coordinates: [c.position, c.destination] },
+        properties: { id: c.id, status: c.status },
+      })),
+    }
+  }
+
+  function toInterceptMarkerFeatureCollection(markers: InterceptMarker[]) {
+    return {
+      type: 'FeatureCollection' as const,
+      features: markers.map((m) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: m.position },
+        properties: { id: m.id, mode: m.mode },
+      })),
+    }
+  }
+
+  function refreshContactSources() {
+    const contactsSource = map?.getSource('contacts') as maplibregl.GeoJSONSource | undefined
+    const contactDestinationsSource = map?.getSource('contact-destinations') as maplibregl.GeoJSONSource | undefined
+    contactsSource?.setData(toContactFeatureCollection(latestContacts) as any)
+    contactDestinationsSource?.setData(toContactDestinationFeatureCollection(latestContacts) as any)
+  }
+
+  function refreshInterceptMarkers() {
+    const source = map?.getSource('intercept-markers') as maplibregl.GeoJSONSource | undefined
+    source?.setData(toInterceptMarkerFeatureCollection(interceptMarkers) as any)
+  }
+
   function renderFrame(now: number) {
     const states = animator.getInterpolatedState(now)
     const vehiclesSource = map?.getSource('vehicles') as maplibregl.GeoJSONSource | undefined
@@ -122,6 +246,9 @@
     })
 
     map.addImage('vehicle-arrow', buildArrowIcon(32), { sdf: true })
+    map.addImage('contact-diamond', buildDiamondIcon(28), { sdf: true })
+    map.addImage('base-icon', buildBaseIcon(28), { sdf: true })
+    map.addImage('intercept-cross', buildCrossIcon(20), { sdf: true })
 
     map.on('load', () => {
       map.addSource('trails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
@@ -166,6 +293,26 @@
         },
       })
 
+      map.addSource('contact-destinations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: 'contact-destinations-layer',
+        type: 'line',
+        source: 'contact-destinations',
+        layout: { 'line-cap': 'round' },
+        paint: {
+          'line-color': [
+            'match', ['get', 'status'],
+            'unidentified', CONTACT_COLORS.unidentified,
+            'inspecting', CONTACT_COLORS.inspecting,
+            'identified', CONTACT_COLORS.identified,
+            CONTACT_COLORS.neutralized,
+          ],
+          'line-width': 1.5,
+          'line-opacity': 0.6,
+          'line-dasharray': [1, 1.5],
+        },
+      })
+
       map.addSource('vehicles', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({
         id: 'vehicles-layer',
@@ -194,32 +341,112 @@
             'critical', STATUS_COLORS.critical,
             STATUS_COLORS.offline,
           ],
+          'icon-opacity': 1,
           'text-color': '#e2e8f0',
           'text-halo-color': '#0f172a',
           'text-halo-width': 1.2,
         },
       })
 
+      map.addSource('contacts', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: 'contacts-layer',
+        type: 'symbol',
+        source: 'contacts',
+        layout: {
+          'icon-image': 'contact-diamond',
+          'icon-allow-overlap': true,
+          'icon-size': 0.8,
+          'text-field': ['get', 'label'],
+          'text-font': ['Noto Sans Bold'],
+          'text-size': 11,
+          'text-offset': [0, 1.2],
+          'text-anchor': 'top',
+          'text-allow-overlap': true,
+          'text-optional': true,
+        },
+        paint: {
+          'icon-color': [
+            'match', ['get', 'status'],
+            'unidentified', CONTACT_COLORS.unidentified,
+            'inspecting', CONTACT_COLORS.inspecting,
+            'identified', CONTACT_COLORS.identified,
+            CONTACT_COLORS.neutralized,
+          ],
+          'text-color': '#fcd34d',
+          'text-halo-color': '#0f172a',
+          'text-halo-width': 1.2,
+        },
+      })
+
+      map.addSource('base', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: getBaseLocation() }, properties: {} }] },
+      })
+      map.addLayer({
+        id: 'base-layer',
+        type: 'symbol',
+        source: 'base',
+        layout: { 'icon-image': 'base-icon', 'icon-size': 1, 'icon-allow-overlap': true },
+        paint: { 'icon-color': '#38bdf8' },
+      })
+
+      map.addSource('intercept-markers', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: 'intercept-markers-layer',
+        type: 'symbol',
+        source: 'intercept-markers',
+        layout: { 'icon-image': 'intercept-cross', 'icon-size': 1, 'icon-allow-overlap': true },
+        paint: {
+          'icon-color': ['case', ['==', ['get', 'mode'], 'attack'], '#ef4444', '#38bdf8'],
+        },
+      })
 
       map.on('click', 'vehicles-layer', (e: maplibregl.MapLayerMouseEvent) => {
         const id = e.features?.[0]?.properties?.id
         if (id) onSelectVehicle(id)
       })
+      map.on('click', 'contacts-layer', (e: maplibregl.MapLayerMouseEvent) => {
+        const id = e.features?.[0]?.properties?.id
+        if (id) onSelectContact(id)
+      })
       map.on('mouseenter', 'vehicles-layer', () => (map.getCanvas().style.cursor = 'pointer'))
       map.on('mouseleave', 'vehicles-layer', () => (map.getCanvas().style.cursor = ''))
+      map.on('mouseenter', 'contacts-layer', () => (map.getCanvas().style.cursor = 'pointer'))
+      map.on('mouseleave', 'contacts-layer', () => (map.getCanvas().style.cursor = ''))
 
       styleLoaded = true
       rafId = requestAnimationFrame(renderFrame)
     })
 
-    unsubscribe = vehicleStore.subscribe((vehicles) => {
+    unsubscribeVehicles = vehicleStore.subscribe((vehicles) => {
       if (vehicles.length) animator.update(vehicles)
     })
+
+    unsubscribeContacts = contactStore.subscribe((contacts) => {
+      latestContacts = contacts
+      if (styleLoaded) refreshContactSources()
+    })
+
+    vehicleStore.onInterceptMarker((marker) => {
+      interceptMarkers = [...interceptMarkers, marker]
+      if (styleLoaded) refreshInterceptMarkers()
+    })
+
+    flashTimer = setInterval(() => {
+      flashOn = !flashOn
+      if (!styleLoaded) return
+      map.setPaintProperty('vehicles-layer', 'icon-opacity', [
+        'case', ['==', ['get', 'onMission'], true], flashOn ? 1 : 0.25, 1,
+      ])
+    }, 450)
   })
 
   onDestroy(() => {
     cancelAnimationFrame(rafId)
-    unsubscribe?.()
+    clearInterval(flashTimer)
+    unsubscribeVehicles?.()
+    unsubscribeContacts?.()
     map?.remove()
   })
 </script>

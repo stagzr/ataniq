@@ -1,5 +1,6 @@
 import type {
   AlertSource,
+  ContactSource,
   MissionService,
   TelemetrySource,
   VehicleRepository,
@@ -10,15 +11,30 @@ import {
   MockMissionService,
   MockVehicleRepository,
 } from "./mock/mockRepositories";
-import { createMockVehicles } from "./mock/mockData";
-import { MockTelemetrySource } from "./mock/mockTelemetrySource";
-import { WsAlertSource, WsTelemetrySource } from "./real/wsSources";
+import { createMockVehicles, BASE_POSITION } from "./mock/mockData";
+import { getMockContactSource, getMockTelemetrySource } from "./mock/mockWorld";
+import {
+  WsAlertSource,
+  WsContactSource,
+  WsTelemetrySource,
+} from "./real/wsSources";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== "false";
 
 export function createTelemetrySource(): TelemetrySource {
-  if (USE_MOCK) return new MockTelemetrySource();
+  if (USE_MOCK) return getMockTelemetrySource();
   return new WsTelemetrySource(import.meta.env.VITE_WS_TELEMETRY_URL ?? "");
+}
+
+export function createContactSource(): ContactSource {
+  if (USE_MOCK) return getMockContactSource();
+  return new WsContactSource(import.meta.env.VITE_WS_CONTACTS_URL ?? "");
+}
+
+// Fixed home port location. Mock-only for now; a real backend would expose
+// this via its own API once one exists.
+export function getBaseLocation(): [number, number] {
+  return BASE_POSITION;
 }
 
 export function createAlertSource(): AlertSource {

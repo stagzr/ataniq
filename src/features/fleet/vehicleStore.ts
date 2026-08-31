@@ -1,5 +1,5 @@
 import { writable } from "svelte/store";
-import type { Vehicle } from "../../lib/types";
+import type { Vehicle, VehicleCommand } from "../../lib/types";
 import {
   createTelemetrySource,
   createVehicleRepository,
@@ -21,7 +21,17 @@ function createVehicleStore() {
     telemetry.disconnect();
   }
 
-  return { subscribe, init, destroy };
+  function sendCommand(vehicleId: string, command: VehicleCommand) {
+    telemetry.sendCommand(vehicleId, command);
+  }
+
+  return {
+    subscribe,
+    init,
+    destroy,
+    sendCommand,
+    onInterceptMarker: telemetry.onInterceptMarker.bind(telemetry),
+  };
 }
 
 export const vehicleStore = createVehicleStore();

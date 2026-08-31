@@ -1,5 +1,11 @@
-import type { AlertEvent, Vehicle } from "../../types";
-import type { AlertSource, TelemetrySource } from "../types";
+import type {
+  AlertEvent,
+  Contact,
+  InterceptMarker,
+  Vehicle,
+  VehicleCommand,
+} from "../../types";
+import type { AlertSource, ContactSource, TelemetrySource } from "../types";
 
 // Real implementations connect to a live WebSocket backend once one exists.
 // Same interface as the mock sources, so swapping requires no UI/store changes.
@@ -7,6 +13,7 @@ import type { AlertSource, TelemetrySource } from "../types";
 export class WsTelemetrySource implements TelemetrySource {
   private socket: WebSocket | undefined;
   private listeners: Array<(vehicles: Vehicle[]) => void> = [];
+  private interceptListeners: Array<(marker: InterceptMarker) => void> = [];
 
   constructor(private url: string) {}
 
@@ -24,6 +31,38 @@ export class WsTelemetrySource implements TelemetrySource {
   }
 
   onUpdate(callback: (vehicles: Vehicle[]) => void): void {
+    this.listeners.push(callback);
+  }
+
+  onInterceptMarker(callback: (marker: InterceptMarker) => void): void {
+    this.interceptListeners.push(callback);
+  }
+
+  sendCommand(vehicleId: string, command: VehicleCommand): void {
+    this.socket?.send(JSON.stringify({ vehicleId, command }));
+  }
+}
+
+export class WsContactSource implements ContactSource {
+  private socket: WebSocket | undefined;
+  private listeners: Array<(contacts: Contact[]) => void> = [];
+
+  constructor(private url: string) {}
+
+  connect(): void {
+    this.socket = new WebSocket(this.url);
+    this.socket.onmessage = (event) => {
+      const contacts = JSON.parse(event.data) as Contact[];
+      for (const listener of this.listeners) listener(contacts);
+    };
+  }
+
+  disconnect(): void {
+    this.socket?.close();
+    this.socket = undefined;
+  }
+
+  onUpdate(callback: (contacts: Contact[]) => void): void {
     this.listeners.push(callback);
   }
 }
