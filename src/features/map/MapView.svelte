@@ -104,6 +104,19 @@
     neutralized: '#475569',
   }
 
+  const BASEMAP_STYLE: maplibregl.StyleSpecification = {
+    version: 8,
+    sources: {
+      'carto-light': {
+        type: 'raster',
+        tiles: ['https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        attribution: '© OpenStreetMap contributors © CARTO',
+      },
+    },
+    layers: [{ id: 'carto-light', type: 'raster', source: 'carto-light' }],
+  }
+
   const ORDER_LABEL: Record<Vehicle['order']['type'], string> = {
     patrol: 'On patrol',
     'return-to-base': 'Returning to base',
@@ -374,18 +387,18 @@
   onMount(() => {
     map = new maplibregl.Map({
       container: mapContainer,
-      style: 'https://tiles.openfreemap.org/styles/liberty',
+      style: BASEMAP_STYLE,
       center: [19.9, 57.5],
       zoom: 9,
     })
     vehiclePopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 18, className: 'vehicle-hover-popup' })
 
-    map.addImage('vehicle-arrow', buildArrowIcon(32), { sdf: true })
-    map.addImage('contact-diamond', buildDiamondIcon(28), { sdf: true })
-    map.addImage('base-icon', buildBaseIcon(28), { sdf: true })
-    map.addImage('intercept-cross', buildCrossIcon(20), { sdf: true })
-
     map.on('load', () => {
+      map.addImage('vehicle-arrow', buildArrowIcon(32), { sdf: true })
+      map.addImage('contact-diamond', buildDiamondIcon(28), { sdf: true })
+      map.addImage('base-icon', buildBaseIcon(28), { sdf: true })
+      map.addImage('intercept-cross', buildCrossIcon(20), { sdf: true })
+
       map.addSource('trails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({
         id: 'trails-layer',
