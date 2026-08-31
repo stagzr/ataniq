@@ -115,14 +115,14 @@
   const BASEMAP_STYLE: maplibregl.StyleSpecification = {
     version: 8,
     sources: {
-      'carto-light': {
+      'osm-standard': {
         type: 'raster',
-        tiles: ['https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'],
+        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
         tileSize: 256,
-        attribution: '© OpenStreetMap contributors © CARTO',
+        attribution: '© OpenStreetMap contributors',
       },
     },
-    layers: [{ id: 'carto-light', type: 'raster', source: 'carto-light' }],
+    layers: [{ id: 'osm-standard', type: 'raster', source: 'osm-standard' }],
   }
   const FALLBACK_TILE_ZOOM = 10
   const FALLBACK_TILE_SIZE = 256
@@ -398,7 +398,7 @@
       for (let y = startY; y <= endY; y++) {
         tiles.push({
           key: `${FALLBACK_TILE_ZOOM}-${x}-${y}`,
-          src: `https://a.basemaps.cartocdn.com/light_all/${FALLBACK_TILE_ZOOM}/${x}/${y}.png`,
+          src: `https://tile.openstreetmap.org/${FALLBACK_TILE_ZOOM}/${x}/${y}.png`,
           left: x * FALLBACK_TILE_SIZE - centerWorld.x + rect.width / 2,
           top: y * FALLBACK_TILE_SIZE - centerWorld.y + rect.height / 2,
         })
