@@ -5,6 +5,7 @@ Frontend-only marine drone fleet monitoring dashboard. No backend required — t
 See [plan.md](./plan.md) for full product/architecture background.
 
 ## Stack
+
 - Svelte 5 + TypeScript + Vite
 - Tailwind CSS
 - MapLibre GL JS (vector map + fleet markers/trails)

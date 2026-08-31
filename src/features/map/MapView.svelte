@@ -113,6 +113,13 @@
           'icon-rotation-alignment': 'map',
           'icon-allow-overlap': true,
           'icon-size': 0.8,
+          'text-field': ['get', 'name'],
+          'text-font': ['Open Sans Semibold'],
+          'text-size': 11,
+          'text-offset': [0, 1.2],
+          'text-anchor': 'top',
+          'text-allow-overlap': true,
+          'text-optional': true,
         },
         paint: {
           'icon-color': [
@@ -123,8 +130,12 @@
             'critical', STATUS_COLORS.critical,
             STATUS_COLORS.offline,
           ],
+          'text-color': '#e2e8f0',
+          'text-halo-color': '#0f172a',
+          'text-halo-width': 1.2,
         },
       })
+
 
       map.on('click', 'vehicles-layer', (e: maplibregl.MapLayerMouseEvent) => {
         const id = e.features?.[0]?.properties?.id
