@@ -12,7 +12,7 @@ import {
   MockVehicleRepository,
 } from "./mock/mockRepositories";
 import { createMockVehicles, BASE_POSITION } from "./mock/mockData";
-import { getMockContactSource, getMockTelemetrySource } from "./mock/mockWorld";
+import { SyncedContactSource, SyncedTelemetrySource } from "./mock/syncedSources";
 import {
   WsAlertSource,
   WsContactSource,
@@ -22,12 +22,12 @@ import {
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== "false";
 
 export function createTelemetrySource(): TelemetrySource {
-  if (USE_MOCK) return getMockTelemetrySource();
+  if (USE_MOCK) return new SyncedTelemetrySource();
   return new WsTelemetrySource(import.meta.env.VITE_WS_TELEMETRY_URL ?? "");
 }
 
 export function createContactSource(): ContactSource {
-  if (USE_MOCK) return getMockContactSource();
+  if (USE_MOCK) return new SyncedContactSource();
   return new WsContactSource(import.meta.env.VITE_WS_CONTACTS_URL ?? "");
 }
 

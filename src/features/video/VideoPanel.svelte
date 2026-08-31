@@ -6,6 +6,7 @@
   const videoSource = createVideoSource()
 
   let activeId: string | undefined = undefined
+  let layout: 'tabs' | 'grid' = 'tabs'
 
   // keep the active tab valid as the vehicle list changes (e.g. switching missions)
   $: if (!vehicles.some((v) => v.id === activeId)) {
@@ -17,30 +18,67 @@
 </script>
 
 {#if vehicles.length > 1}
-  <div class="mb-2 flex flex-wrap gap-1">
-    {#each vehicles as vehicle (vehicle.id)}
+  <div class="mb-2 flex items-center justify-between gap-2">
+    {#if layout === 'tabs'}
+      <div class="flex flex-wrap gap-1">
+        {#each vehicles as vehicle (vehicle.id)}
+          <button
+            type="button"
+            class="rounded px-2 py-1 text-xs font-medium {activeId === vehicle.id
+              ? 'bg-sky-600 text-white'
+              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}"
+            onclick={() => (activeId = vehicle.id)}
+          >
+            {vehicle.name}
+          </button>
+        {/each}
+      </div>
+    {:else}
+      <span class="text-xs text-slate-500">{vehicles.length} feeds</span>
+    {/if}
+    <div class="flex gap-1">
       <button
         type="button"
-        class="rounded px-2 py-1 text-xs font-medium {activeId === vehicle.id
-          ? 'bg-sky-600 text-white'
-          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}"
-        onclick={() => (activeId = vehicle.id)}
+        class="rounded px-2 py-1 text-xs font-medium {layout === 'tabs' ? 'bg-slate-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}"
+        onclick={() => (layout = 'tabs')}
       >
-        {vehicle.name}
+        Tabs
       </button>
-    {/each}
+      <button
+        type="button"
+        class="rounded px-2 py-1 text-xs font-medium {layout === 'grid' ? 'bg-slate-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}"
+        onclick={() => (layout = 'grid')}
+      >
+        Grid
+      </button>
+    </div>
   </div>
 {/if}
 
-<div class="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded bg-black">
-  {#if streamUrl}
-    <video src={streamUrl} autoplay loop muted playsinline class="h-full w-full object-cover"></video>
-    <div class="absolute left-2 top-2 flex items-center gap-1 rounded bg-black/60 px-2 py-1 text-xs text-red-400">
-      <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500"></span>
-      LIVE
-    </div>
-    <div class="absolute right-2 top-2 rounded bg-black/60 px-2 py-1 text-xs text-slate-300">{activeVehicle?.name}</div>
-  {:else}
-    <div class="text-sm text-slate-600">No feed selected</div>
-  {/if}
-</div>
+{#if layout === 'grid' && vehicles.length > 1}
+  <div class="grid grid-cols-2 gap-2">
+    {#each vehicles as vehicle (vehicle.id)}
+      <div class="relative flex aspect-video items-center justify-center overflow-hidden rounded bg-black">
+        <video src={videoSource.getStreamUrl(vehicle.id)} autoplay loop muted playsinline class="h-full w-full object-cover"></video>
+        <div class="absolute left-1 top-1 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-red-400">
+          <span class="h-1 w-1 animate-pulse rounded-full bg-red-500"></span>
+          LIVE
+        </div>
+        <div class="absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-slate-300">{vehicle.name}</div>
+      </div>
+    {/each}
+  </div>
+{:else}
+  <div class="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded bg-black">
+    {#if streamUrl}
+      <video src={streamUrl} autoplay loop muted playsinline class="h-full w-full object-cover"></video>
+      <div class="absolute left-2 top-2 flex items-center gap-1 rounded bg-black/60 px-2 py-1 text-xs text-red-400">
+        <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500"></span>
+        LIVE
+      </div>
+      <div class="absolute right-2 top-2 rounded bg-black/60 px-2 py-1 text-xs text-slate-300">{activeVehicle?.name}</div>
+    {:else}
+      <div class="text-sm text-slate-600">No feed selected</div>
+    {/if}
+  </div>
+{/if}

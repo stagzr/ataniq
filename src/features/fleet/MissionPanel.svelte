@@ -28,7 +28,17 @@
 
 {#if mission}
   <div class="flex flex-col gap-3 p-4 text-sm text-slate-200">
-    <h2 class="text-base font-semibold text-white">{TITLE[mission.action]}</h2>
+    <div class="flex items-center justify-between">
+      <h2 class="text-base font-semibold text-white">{TITLE[mission.action]}</h2>
+      <button
+        type="button"
+        class="rounded bg-slate-700 px-2 py-1 text-xs font-medium text-white hover:bg-slate-600"
+        title="Open this mission in a separate tab, without the fleet list"
+        onclick={() => window.open(`${location.pathname}${location.search}#mission=${mission!.id}`, '_blank')}
+      >
+        Open in new tab ↗
+      </button>
+    </div>
     <p class="text-xs text-slate-400">{description}</p>
 
     <div class="flex flex-col gap-1">

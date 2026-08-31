@@ -12,9 +12,9 @@
   import { vehicleStore } from '../features/fleet/vehicleStore'
   import { alertStore } from '../features/alerts/alertStore'
   import { contactStore } from '../features/contacts/contactStore'
+  import { missionStore } from '../features/fleet/missionStore'
   import { findAssignedVehicle, findNearestVehicle, nearestVehicleTo } from '../features/contacts/dispatch'
   import { computeCirclePositions, computeLinePositions } from '../lib/formations'
-  import type { FormationMission } from '../lib/types'
 
   const CIRCLE_RADIUS_DEG = 0.05
   const LINE_EMBARGO_RADIUS_DEG = 0.04
@@ -28,11 +28,11 @@
   let multiSelectedIds: Set<string> = new Set()
   let activeFormationAction: FormationAction | undefined = undefined
   let lineStart: [number, number] | undefined = undefined
-  let missions: Record<string, FormationMission> = {}
 
   $: vehicles = $vehicleStore
   $: alerts = $alertStore
   $: contacts = $contactStore
+  $: missions = $missionStore
   $: selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId)
   $: selectedContact = contacts.find((c) => c.id === selectedContactId)
   $: selectedMission = selectedMissionId ? missions[selectedMissionId] : undefined
@@ -129,7 +129,7 @@
         vehicleStore.sendCommand(id, { type: 'orbit-contact', contactId, radiusDeg: INSPECT_ORBIT_RADIUS_DEG, missionId })
       }
     }
-    missions = { ...missions, [missionId]: { id: missionId, action, vehicleIds, contactId, createdAt: Date.now() } }
+    missionStore.addMission({ id: missionId, action, vehicleIds, contactId, createdAt: Date.now() })
     multiActionMode = false
     resetMultiAction()
   }
@@ -142,7 +142,7 @@
       const missionId = `mission-${Date.now()}`
       const points = computeCirclePositions(point, CIRCLE_RADIUS_DEG, ids.length)
       ids.forEach((id, i) => vehicleStore.sendCommand(id, { type: 'hold-position', point: points[i], missionId }))
-      missions = { ...missions, [missionId]: { id: missionId, action: 'circle', vehicleIds: ids, createdAt: Date.now() } }
+      missionStore.addMission({ id: missionId, action: 'circle', vehicleIds: ids, createdAt: Date.now() })
       multiActionMode = false
       resetMultiAction()
       return
@@ -160,10 +160,7 @@
       ids.forEach((id, i) =>
         vehicleStore.sendCommand(id, { type: 'hold-position', point: points[i], embargoLine, missionId }),
       )
-      missions = {
-        ...missions,
-        [missionId]: { id: missionId, action: activeFormationAction, vehicleIds: ids, createdAt: Date.now() },
-      }
+      missionStore.addMission({ id: missionId, action: activeFormationAction, vehicleIds: ids, createdAt: Date.now() })
       multiActionMode = false
       resetMultiAction()
     }
@@ -173,12 +170,14 @@
     vehicleStore.init()
     alertStore.init()
     contactStore.init()
+    missionStore.init()
   })
 
   onDestroy(() => {
     vehicleStore.destroy()
     alertStore.destroy()
     contactStore.destroy()
+    missionStore.destroy()
   })
 </script>
 
