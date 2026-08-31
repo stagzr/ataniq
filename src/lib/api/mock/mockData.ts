@@ -32,6 +32,15 @@ function seededRandom(seed: number) {
   };
 }
 
+export function randomPatrolPoint(rand: () => number): [number, number] {
+  const angle = rand() * Math.PI * 2;
+  const radius = 0.03 + rand() * (PATROL_MAX_RADIUS_DEG - 0.05);
+  return [
+    PATROL_CENTER[0] + Math.cos(angle) * radius,
+    PATROL_CENTER[1] + Math.sin(angle) * radius * 0.6,
+  ];
+}
+
 export function createMockVehicles(): Vehicle[] {
   const rand = seededRandom(42);
   return VEHICLE_NAMES.map((name, i) => {
@@ -58,6 +67,7 @@ export function createMockVehicles(): Vehicle[] {
       battery: Math.round(40 + rand() * 60),
       connectivity: Math.round(60 + rand() * 40),
       lastUpdate: Date.now(),
+      destination: randomPatrolPoint(rand),
     };
   });
 }

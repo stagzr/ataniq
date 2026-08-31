@@ -15,6 +15,7 @@ export interface Vehicle {
   battery: number; // percent 0-100
   connectivity: number; // signal quality 0-100
   lastUpdate: number; // epoch ms
+  destination: [number, number]; // [lng, lat] waypoint the vehicle is heading toward
 }
 
 export type MissionStatus =

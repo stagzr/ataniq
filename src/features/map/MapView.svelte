@@ -6,7 +6,7 @@
   import { VehicleAnimator } from './animation'
   import { vehicleStore } from '../fleet/vehicleStore'
 
-  export const selectedVehicleId: string | undefined = undefined
+  export let selectedVehicleId: string | undefined = undefined
   export let onSelectVehicle: (id: string) => void = () => {}
 
   let mapContainer: HTMLDivElement
@@ -18,9 +18,23 @@
   let showNames = true
 
   $: if (styleLoaded) setNamesVisible(showNames)
+  $: if (styleLoaded) setSelectedVehicle(selectedVehicleId)
 
   function setNamesVisible(show: boolean): void {
     map.setLayoutProperty('vehicles-layer', 'text-field', show ? ['get', 'name'] : '')
+  }
+
+  function setSelectedVehicle(id: string | undefined): void {
+    map.setPaintProperty(
+      'destinations-layer',
+      'line-width',
+      id ? ['case', ['==', ['get', 'id'], id], 3, 1] : 1,
+    )
+    map.setPaintProperty(
+      'destinations-layer',
+      'line-opacity',
+      id ? ['case', ['==', ['get', 'id'], id], 0.9, 0.35] : 0.5,
+    )
   }
 
   const STATUS_COLORS: Record<Vehicle['status'], string> = {
@@ -71,12 +85,31 @@
     }
   }
 
+  function toDestinationFeatureCollection(states: ReturnType<VehicleAnimator['getInterpolatedState']>) {
+    return {
+      type: 'FeatureCollection' as const,
+      features: states.map((s) => ({
+        type: 'Feature' as const,
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: [
+            [s.lng, s.lat],
+            s.destination,
+          ],
+        },
+        properties: { id: s.id, status: s.status },
+      })),
+    }
+  }
+
   function renderFrame(now: number) {
     const states = animator.getInterpolatedState(now)
     const vehiclesSource = map?.getSource('vehicles') as maplibregl.GeoJSONSource | undefined
     const trailsSource = map?.getSource('trails') as maplibregl.GeoJSONSource | undefined
+    const destinationsSource = map?.getSource('destinations') as maplibregl.GeoJSONSource | undefined
     vehiclesSource?.setData(toFeatureCollection(states) as any)
     trailsSource?.setData(toTrailFeatureCollection(states) as any)
+    destinationsSource?.setData(toDestinationFeatureCollection(states) as any)
     rafId = requestAnimationFrame(renderFrame)
   }
 
@@ -107,6 +140,29 @@
           ],
           'line-width': 2,
           'line-opacity': 0.5,
+        },
+      })
+
+      map.addSource('destinations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: 'destinations-layer',
+        type: 'line',
+        source: 'destinations',
+        layout: {
+          'line-cap': 'round',
+        },
+        paint: {
+          'line-color': [
+            'match', ['get', 'status'],
+            'active', STATUS_COLORS.active,
+            'idle', STATUS_COLORS.idle,
+            'warning', STATUS_COLORS.warning,
+            'critical', STATUS_COLORS.critical,
+            STATUS_COLORS.offline,
+          ],
+          'line-width': 1,
+          'line-opacity': 0.5,
+          'line-dasharray': [2, 2],
         },
       })
 
