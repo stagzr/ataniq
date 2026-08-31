@@ -58,10 +58,22 @@
       ? alerts.filter((alert) => alert.source === selectedVehicle.id)
       : alerts
 
-  function selectVehicle(id: string) {
+  function openVehicle(id: string) {
     selectedVehicleId = id
     selectedContactId = undefined
     selectedMissionId = undefined
+  }
+
+  function selectVehicle(id: string) {
+    if (selectedVehicleId === id && !selectedContactId && !selectedMissionId) {
+      clearVehicleSelection()
+      return
+    }
+    openVehicle(id)
+  }
+
+  function clearVehicleSelection() {
+    selectedVehicleId = undefined
   }
 
   function selectContact(id: string) {
@@ -271,6 +283,7 @@
       {:else}
         <TelemetryPanel
           vehicle={selectedVehicle}
+          onClearSelection={clearVehicleSelection}
           onReturnToBase={handleReturnToBase}
           isFollowing={followedTarget?.type === 'vehicle' && followedTarget.id === selectedVehicle?.id}
           onToggleFollow={toggleFollowVehicle}
@@ -284,7 +297,7 @@
     </section>
     <section class="flex min-h-0 flex-1 flex-col p-3">
       <h2 class="pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Alerts</h2>
-      <AlertsPanel alerts={visibleAlerts} onSelectSource={selectVehicle} />
+      <AlertsPanel alerts={visibleAlerts} onSelectSource={openVehicle} />
     </section>
   </aside>
 </div>

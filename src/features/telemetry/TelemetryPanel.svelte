@@ -3,6 +3,7 @@
   import { formatBattery, formatHeading, formatRelativeTime, formatSpeed } from '../../lib/formatters'
 
   export let vehicle: Vehicle | undefined = undefined
+  export let onClearSelection: () => void = () => {}
   export let onReturnToBase: (id: string) => void = () => {}
   export let isFollowing = false
   export let onToggleFollow: (id: string) => void = () => {}
@@ -27,20 +28,30 @@
   <div class="flex flex-col gap-3 p-4 text-sm text-slate-200">
     <div class="flex items-center justify-between">
       <h2 class="text-base font-semibold text-white">{vehicle.name}</h2>
-      {#if missionId}
+      <div class="flex items-center gap-1.5">
+        {#if missionId}
+          <button
+            type="button"
+            class="flex items-center gap-1 rounded bg-sky-600/80 px-2 py-0.5 text-xs font-medium text-white hover:bg-sky-500"
+            onclick={() => onOpenMission(missionId!)}
+          >
+            {ORDER_LABEL[vehicle.order.type]}
+            <span aria-hidden="true">▸</span>
+          </button>
+        {:else}
+          <span class="rounded bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-300">
+            {ORDER_LABEL[vehicle.order.type]}
+          </span>
+        {/if}
         <button
           type="button"
-          class="flex items-center gap-1 rounded bg-sky-600/80 px-2 py-0.5 text-xs font-medium text-white hover:bg-sky-500"
-          onclick={() => onOpenMission(missionId!)}
+          class="rounded bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+          title="Deselect this boat"
+          onclick={onClearSelection}
         >
-          {ORDER_LABEL[vehicle.order.type]}
-          <span aria-hidden="true">▸</span>
+          Clear
         </button>
-      {:else}
-        <span class="rounded bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-300">
-          {ORDER_LABEL[vehicle.order.type]}
-        </span>
-      {/if}
+      </div>
     </div>
     <div class="grid grid-cols-2 gap-3">
       <div class="rounded bg-slate-800/60 p-2">
