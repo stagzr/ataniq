@@ -29,12 +29,14 @@ export function nearestVehicleTo(
   }, undefined);
 }
 
-// The vehicle currently dispatched to inspect/attack a given contact, if any.
+// The vehicle currently dispatched to inspect, follow, or attack a given contact, if any.
 export function findAssignedVehicle(
   vehicles: Vehicle[],
   contactId: string,
 ): Vehicle | undefined {
   return vehicles.find(
-    (v) => v.order.type === "intercept" && v.order.contactId === contactId,
+    (v) =>
+      (v.order.type === "intercept" || v.order.type === "orbit-contact") &&
+      v.order.contactId === contactId,
   );
 }

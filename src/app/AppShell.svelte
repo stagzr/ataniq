@@ -13,7 +13,7 @@
   import { alertStore } from '../features/alerts/alertStore'
   import { contactStore } from '../features/contacts/contactStore'
   import { missionStore } from '../features/fleet/missionStore'
-  import { findAssignedVehicle, findNearestVehicle, nearestVehicleTo } from '../features/contacts/dispatch'
+  import { findAssignedVehicle, findNearestVehicle } from '../features/contacts/dispatch'
   import { computeCirclePositions, computeLinePositions } from '../lib/formations'
 
   const CIRCLE_RADIUS_DEG = 0.05
@@ -44,7 +44,7 @@
       ? new Set(selectedMission.vehicleIds)
       : new Set<string>()
   $: videoVehicle = selectedContact
-    ? (findAssignedVehicle(vehicles, selectedContact.id) ?? nearestVehicleTo(vehicles, selectedContact.position))
+    ? findAssignedVehicle(vehicles, selectedContact.id)
     : selectedVehicle
   $: videoVehicles = selectedMission
     ? missionVehicles
