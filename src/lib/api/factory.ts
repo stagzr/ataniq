@@ -51,7 +51,7 @@ export function createMissionService(): MissionService {
   return new MockMissionService();
 }
 
-const SAMPLE_STREAM_URL = `${import.meta.env.BASE_URL}video/ride.mp4`;
+const RIDE_STREAM_URL = `${import.meta.env.BASE_URL}video/ride.mp4`;
 const STILL_STREAM_URL = new URL("../../../still.mp4", import.meta.url).href;
 const ARRIVED_STREAM_URL = new URL("../../../arrived.mp4", import.meta.url)
   .href;
@@ -61,7 +61,7 @@ export function createVideoSource(): VideoSource {
     getStreamUrl(_vehicleId: string, variant = "default") {
       if (variant === "still") return STILL_STREAM_URL;
       if (variant === "arrived") return ARRIVED_STREAM_URL;
-      return SAMPLE_STREAM_URL;
+      return RIDE_STREAM_URL;
     },
   };
 }
