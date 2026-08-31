@@ -41,36 +41,137 @@ export function randomPatrolPoint(rand: () => number): [number, number] {
   ];
 }
 
+// Mock movement scenarios: some vehicles patrol a fixed circle (two vehicles
+// per circle, on opposite sides), some stay anchored in place, the rest wander
+// between random waypoints (see randomPatrolPoint / MockTelemetrySource).
+export interface CirclePatrol {
+  center: [number, number];
+  radiusDeg: number;
+  angularSpeedDeg: number; // per simulation tick
+  vehicles: { id: string; startAngleDeg: number }[];
+}
+
+export const CIRCLE_PATROLS: CirclePatrol[] = [
+  {
+    center: [PATROL_CENTER[0] - 0.12, PATROL_CENTER[1] + 0.08],
+    radiusDeg: 0.05,
+    angularSpeedDeg: 6,
+    vehicles: [
+      { id: "veh-1", startAngleDeg: 0 },
+      { id: "veh-2", startAngleDeg: 180 },
+    ],
+  },
+  {
+    center: [PATROL_CENTER[0] + 0.1, PATROL_CENTER[1] - 0.09],
+    radiusDeg: 0.05,
+    angularSpeedDeg: 6,
+    vehicles: [
+      { id: "veh-3", startAngleDeg: 0 },
+      { id: "veh-4", startAngleDeg: 180 },
+    ],
+  },
+];
+
+export const STATIONARY_VEHICLE_IDS = ["veh-5", "veh-6", "veh-7"];
+
+export function circlePosition(
+  center: [number, number],
+  radiusDeg: number,
+  angleDeg: number,
+): [number, number] {
+  const rad = (angleDeg * Math.PI) / 180;
+  return [
+    center[0] + Math.cos(rad) * radiusDeg,
+    center[1] + Math.sin(rad) * radiusDeg * 0.6,
+  ];
+}
+
+function findCirclePatrol(id: string) {
+  return CIRCLE_PATROLS.find((patrol) =>
+    patrol.vehicles.some((v) => v.id === id),
+  );
+}
+
 export function createMockVehicles(): Vehicle[] {
   const rand = seededRandom(42);
   return VEHICLE_NAMES.map((name, i) => {
+    const id = `veh-${i + 1}`;
     const angle = rand() * Math.PI * 2;
     const radius = 0.03 + rand() * (PATROL_MAX_RADIUS_DEG - 0.05);
     const statusRoll = rand();
-    return {
-      id: `veh-${i + 1}`,
-      name,
-      status:
-        statusRoll > 0.92
-          ? "critical"
-          : statusRoll > 0.8
-            ? "warning"
-            : statusRoll > 0.1
-              ? "active"
-              : "idle",
-      position: [
+    const status: Vehicle["status"] =
+      statusRoll > 0.92
+        ? "critical"
+        : statusRoll > 0.8
+          ? "warning"
+          : statusRoll > 0.1
+            ? "active"
+            : "idle";
+
+    const circlePatrol = findCirclePatrol(id);
+    const circleVehicle = circlePatrol?.vehicles.find((v) => v.id === id);
+    const isStationary = STATIONARY_VEHICLE_IDS.includes(id);
+
+    let position: [number, number];
+    let heading: number;
+    let speed: number;
+    let destination: [number, number];
+
+    if (circlePatrol && circleVehicle) {
+      position = circlePosition(
+        circlePatrol.center,
+        circlePatrol.radiusDeg,
+        circleVehicle.startAngleDeg,
+      );
+      const ahead = circlePosition(
+        circlePatrol.center,
+        circlePatrol.radiusDeg,
+        circleVehicle.startAngleDeg + circlePatrol.angularSpeedDeg,
+      );
+      heading =
+        (Math.atan2(ahead[0] - position[0], ahead[1] - position[1]) * 180) /
+          Math.PI +
+        360;
+      heading %= 360;
+      speed = 8 + rand() * 3;
+      destination = circlePosition(
+        circlePatrol.center,
+        circlePatrol.radiusDeg,
+        circleVehicle.startAngleDeg + circlePatrol.angularSpeedDeg * 3,
+      );
+    } else if (isStationary) {
+      position = [
         ORIGIN[0] + Math.cos(angle) * radius,
         ORIGIN[1] + Math.sin(angle) * radius * 0.6,
-      ],
-      heading: Math.round(rand() * 360),
-      speed: Math.round(rand() * 22 * 10) / 10,
+      ];
+      heading = Math.round(rand() * 360);
+      speed = 0;
+      destination = position;
+    } else {
+      position = [
+        ORIGIN[0] + Math.cos(angle) * radius,
+        ORIGIN[1] + Math.sin(angle) * radius * 0.6,
+      ];
+      heading = Math.round(rand() * 360);
+      speed = Math.round(rand() * 22 * 10) / 10;
+      destination = randomPatrolPoint(rand);
+    }
+
+    return {
+      id,
+      name,
+      status,
+      position,
+      heading,
+      speed,
       battery: Math.round(40 + rand() * 60),
       connectivity: Math.round(60 + rand() * 40),
       lastUpdate: Date.now(),
-      destination: randomPatrolPoint(rand),
+      destination,
     };
   });
 }
+
 
 export function createMockMissions(vehicles: Vehicle[]): Mission[] {
   return [
