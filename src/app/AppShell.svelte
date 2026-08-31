@@ -215,6 +215,7 @@
       <button
         type="button"
         class="rounded px-2 py-1 font-medium {multiActionMode ? 'bg-sky-600 text-white' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'}"
+        title="Select multiple boats (via checkboxes or on the map) and give them a group order: Attack, Inspect, Circle, Line, or Embargo"
         onclick={toggleMultiActionMode}
       >
         Multiaction

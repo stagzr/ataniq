@@ -7,12 +7,37 @@
   export let activeAction: FormationAction | undefined = undefined
   export let onSelectAction: (action: FormationAction) => void = () => {}
 
-  const ACTIONS: { id: FormationAction; label: string; hint: string }[] = [
-    { id: 'attack', label: 'Attack', hint: 'Click an unidentified contact on the map' },
-    { id: 'inspect', label: 'Inspect', hint: 'Click an unidentified contact to orbit at standoff range' },
-    { id: 'circle', label: 'Circle', hint: 'Click the map to spread the selection in a circle' },
-    { id: 'line', label: 'Line', hint: 'Click two points on the map to draw a line' },
-    { id: 'embargo', label: 'Embargo', hint: 'Draw a line; boats inspect any contact that gets close' },
+  const ACTIONS: { id: FormationAction; label: string; hint: string; description: string }[] = [
+    {
+      id: 'attack',
+      label: 'Attack',
+      hint: 'Click an unidentified contact on the map',
+      description: 'Send the selected boats to intercept and attack an unidentified contact. Click a contact on the map after selecting this.',
+    },
+    {
+      id: 'inspect',
+      label: 'Inspect',
+      hint: 'Click an unidentified contact to orbit at standoff range',
+      description: 'Send the selected boats to orbit an unidentified contact at a safe distance instead of closing in. Click a contact on the map after selecting this.',
+    },
+    {
+      id: 'circle',
+      label: 'Circle',
+      hint: 'Click the map to spread the selection in a circle',
+      description: 'Spread the selected boats evenly around a point in a circle formation. Click anywhere on the map after selecting this.',
+    },
+    {
+      id: 'line',
+      label: 'Line',
+      hint: 'Click two points on the map to draw a line',
+      description: 'Spread the selected boats evenly along a line and hold position. Click two points on the map after selecting this.',
+    },
+    {
+      id: 'embargo',
+      label: 'Embargo',
+      hint: 'Draw a line; boats inspect any contact that gets close',
+      description: 'Same as Line, but boats will break off to inspect any unidentified contact that drifts close to the line, then return to their post. Click two points on the map after selecting this.',
+    },
   ]
 </script>
 
@@ -31,6 +56,7 @@
         class="rounded px-3 py-2 text-left text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-40
           {activeAction === action.id ? 'bg-sky-600 hover:bg-sky-500' : 'bg-slate-700 hover:bg-slate-600'}"
         disabled={selectedCount === 0}
+        title={action.description}
         onclick={() => onSelectAction(action.id)}
       >
         {action.label}
