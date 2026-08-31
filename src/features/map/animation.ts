@@ -59,7 +59,9 @@ export class VehicleAnimator {
         lat: lerp(prevVehicle.position[1], v.position[1], t),
         heading: lerpAngle(prevVehicle.heading, v.heading, t),
         destination: v.destination,
-        onMission: v.order.type !== "patrol" && (v.order.type !== "hold-position" || Boolean(v.order.missionId)),
+        onMission:
+          v.order.type !== "patrol" &&
+          (v.order.type !== "hold-position" || Boolean(v.order.missionId)),
         trail: this.trails.get(v.id) ?? [],
       };
     });

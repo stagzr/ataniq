@@ -108,7 +108,8 @@ class World {
         for (const l of this.markerListeners) l(msg.marker);
         break;
       case "command":
-        if (this.isLeader) this.realTelemetry?.sendCommand(msg.vehicleId, msg.command);
+        if (this.isLeader)
+          this.realTelemetry?.sendCommand(msg.vehicleId, msg.command);
         break;
       case "mission-add":
         this.missions.set(msg.mission.id, msg.mission);

@@ -1,4 +1,9 @@
-import type { Contact, InterceptMarker, Vehicle, VehicleCommand } from "../../types";
+import type {
+  Contact,
+  InterceptMarker,
+  Vehicle,
+  VehicleCommand,
+} from "../../types";
 import type { ContactSource, TelemetrySource } from "../types";
 import { world } from "./worldSync";
 

@@ -12,7 +12,10 @@ import {
   MockVehicleRepository,
 } from "./mock/mockRepositories";
 import { createMockVehicles, BASE_POSITION } from "./mock/mockData";
-import { SyncedContactSource, SyncedTelemetrySource } from "./mock/syncedSources";
+import {
+  SyncedContactSource,
+  SyncedTelemetrySource,
+} from "./mock/syncedSources";
 import {
   WsAlertSource,
   WsContactSource,

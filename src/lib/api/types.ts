@@ -32,7 +32,10 @@ export interface AlertSource {
 export type VideoStreamVariant = "default" | "still" | "arrived";
 
 export interface VideoSource {
-  getStreamUrl(vehicleId: string, variant?: VideoStreamVariant): string | undefined;
+  getStreamUrl(
+    vehicleId: string,
+    variant?: VideoStreamVariant,
+  ): string | undefined;
 }
 
 export interface ContactSource {
