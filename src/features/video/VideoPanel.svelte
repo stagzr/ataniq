@@ -15,6 +15,22 @@
 
   $: activeVehicle = vehicles.find((v) => v.id === activeId)
   $: streamUrl = activeVehicle ? videoSource.getStreamUrl(activeVehicle.id) : undefined
+
+  // deterministic per-vehicle offset so identical looping clips don't look in sync in the grid
+  function staggerStart(video: HTMLVideoElement, vehicleId: string) {
+    function onLoaded() {
+      let hash = 0
+      for (let i = 0; i < vehicleId.length; i++) hash = (hash << 5) - hash + vehicleId.charCodeAt(i)
+      const duration = video.duration || 0
+      if (duration > 0) video.currentTime = Math.abs(hash) % duration
+    }
+    video.addEventListener('loadedmetadata', onLoaded)
+    return {
+      destroy() {
+        video.removeEventListener('loadedmetadata', onLoaded)
+      },
+    }
+  }
 </script>
 
 {#if vehicles.length > 1}
@@ -59,7 +75,15 @@
   <div class="grid grid-cols-2 gap-2">
     {#each vehicles as vehicle (vehicle.id)}
       <div class="relative flex aspect-video items-center justify-center overflow-hidden rounded bg-black">
-        <video src={videoSource.getStreamUrl(vehicle.id)} autoplay loop muted playsinline class="h-full w-full object-cover"></video>
+        <video
+          src={videoSource.getStreamUrl(vehicle.id)}
+          use:staggerStart={vehicle.id}
+          autoplay
+          loop
+          muted
+          playsinline
+          class="h-full w-full object-cover"
+        ></video>
         <div class="absolute left-1 top-1 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-red-400">
           <span class="h-1 w-1 animate-pulse rounded-full bg-red-500"></span>
           LIVE
