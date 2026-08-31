@@ -7,7 +7,7 @@
   export let contacts: Contact[] = []
 
   const videoSource = createVideoSource()
-  const ARRIVED_CONTACT_DEG = 0.035
+  const ARRIVED_CONTACT_DEG = 0.055
   const STILL_SPEED_KNOTS = 0.5
 
   let activeId: string | undefined = undefined
@@ -26,9 +26,22 @@
   }
 
   function getVideoVariant(vehicle: Vehicle): VideoStreamVariant {
+    if (isInspectingNearUnidentifiedContact(vehicle)) return 'arrived'
     if (vehicle.speed > STILL_SPEED_KNOTS && vehicle.order.type !== 'hold-position') return 'default'
     if (isNearUnidentifiedContact(vehicle)) return 'arrived'
     return 'still'
+  }
+
+  function isInspectingNearUnidentifiedContact(vehicle: Vehicle) {
+    const contactId =
+      vehicle.order.type === 'orbit-contact'
+        ? vehicle.order.contactId
+        : vehicle.order.type === 'intercept' && vehicle.order.mode === 'inspect'
+          ? vehicle.order.contactId
+          : undefined
+    if (!contactId) return false
+    const contact = contacts.find((c) => c.id === contactId && c.status === 'unidentified')
+    return contact ? distanceDeg(vehicle.position, contact.position) <= ARRIVED_CONTACT_DEG : false
   }
 
   function isNearUnidentifiedContact(vehicle: Vehicle) {

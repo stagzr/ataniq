@@ -102,7 +102,11 @@
     const nearest = findNearestVehicle(vehicles, contact)
     if (!nearest) return
     const missionId = `mission-${Date.now()}`
-    vehicleStore.sendCommand(nearest.id, { type: 'intercept', contactId, mode, missionId })
+    if (mode === 'inspect') {
+      vehicleStore.sendCommand(nearest.id, { type: 'orbit-contact', contactId, radiusDeg: INSPECT_ORBIT_RADIUS_DEG, missionId })
+    } else {
+      vehicleStore.sendCommand(nearest.id, { type: 'intercept', contactId, mode, missionId })
+    }
     missionStore.addMission({ id: missionId, action: mode, vehicleIds: [nearest.id], contactId, createdAt: Date.now() })
   }
 
