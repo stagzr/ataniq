@@ -34,8 +34,13 @@
   let vehiclePopup: maplibregl.Popup | undefined
   let interceptMarkers: InterceptMarker[] = []
   let fallbackTiles: Array<{ key: string; src: string; left: number; top: number }> = []
+  let vehicleTrailLines: Array<{ id: string; status: Vehicle['status']; points: string }> = []
+  let vehicleDestinationLines: Array<{ id: string; status: Vehicle['status']; x1: number; y1: number; x2: number; y2: number; selected: boolean }> = []
+  let contactDestinationLines: Array<{ id: string; status: Contact['status']; x1: number; y1: number; x2: number; y2: number; selected: boolean }> = []
   let vehicleMarkers: Array<{ id: string; name: string; status: Vehicle['status']; x: number; y: number; heading: number }> = []
   let contactMarkers: Array<{ id: string; label: string; status: Contact['status']; x: number; y: number }> = []
+  let pulseRings: Array<{ id: string; x: number; y: number; size: number; opacity: number }> = []
+  let baseMarker: { x: number; y: number } | undefined
   let vehiclePulses: Array<{ id: string; vehicleId: string; startedAt: number }> = []
   let lastPulseSelectedVehicleId: string | undefined = undefined
   let lastPulseFollowedVehicleId: string | undefined = undefined
@@ -121,6 +126,14 @@
   }
   const FALLBACK_TILE_ZOOM = 10
   const FALLBACK_TILE_SIZE = 256
+
+  function getVehicleColor(status: Vehicle['status']): string {
+    return STATUS_COLORS[status]
+  }
+
+  function getContactColor(status: Contact['status']): string {
+    return CONTACT_COLORS[status]
+  }
 
   const ORDER_LABEL: Record<Vehicle['order']['type'], string> = {
     patrol: 'On patrol',
@@ -370,7 +383,7 @@
     }
   }
 
-  function updateHtmlOverlay(states: ReturnType<VehicleAnimator['getInterpolatedState']>) {
+  function updateHtmlOverlay(states: ReturnType<VehicleAnimator['getInterpolatedState']>, now: number) {
     if (!mapContainer || !map) return
     const rect = mapContainer.getBoundingClientRect()
     const center = map.getCenter()
@@ -393,6 +406,26 @@
     }
 
     fallbackTiles = tiles
+    vehicleTrailLines = states
+      .filter((state) => state.trail.length > 1)
+      .map((state) => ({
+        id: state.id,
+        status: state.status,
+        points: state.trail
+          .map((point) => map.project(point))
+          .map((point) => `${point.x},${point.y}`)
+          .join(' '),
+      }))
+    vehicleDestinationLines = states.map((state) => {
+      const start = map.project([state.lng, state.lat])
+      const end = map.project(state.destination)
+      return { id: state.id, status: state.status, x1: start.x, y1: start.y, x2: end.x, y2: end.y, selected: selectedVehicleId === state.id }
+    })
+    contactDestinationLines = latestContacts.map((contact) => {
+      const start = map.project(contact.position)
+      const end = map.project(contact.destination)
+      return { id: contact.id, status: contact.status, x1: start.x, y1: start.y, x2: end.x, y2: end.y, selected: selectedContactId === contact.id }
+    })
     vehicleMarkers = states.map((state) => {
       const point = map.project([state.lng, state.lat])
       return { id: state.id, name: state.name, status: state.status, x: point.x, y: point.y, heading: state.heading }
@@ -401,6 +434,17 @@
       const point = map.project(contact.position)
       return { id: contact.id, label: contact.label, status: contact.status, x: point.x, y: point.y }
     })
+    pulseRings = vehiclePulses
+      .map((pulse) => {
+        const state = states.find((candidate) => candidate.id === pulse.vehicleId)
+        if (!state) return undefined
+        const point = map.project([state.lng, state.lat])
+        const progress = Math.min(1, (now - pulse.startedAt) / 2000)
+        return { id: pulse.id, x: point.x, y: point.y, size: 24 + progress * 68, opacity: 0.85 - progress * 0.85 }
+      })
+      .filter((pulse): pulse is NonNullable<typeof pulse> => Boolean(pulse))
+    const basePoint = map.project(getBaseLocation())
+    baseMarker = { x: basePoint.x, y: basePoint.y }
   }
 
   function renderFrame(now: number) {
@@ -416,7 +460,7 @@
     destinationsSource?.setData(toDestinationFeatureCollection(states) as any)
     multiSelectSource?.setData(toMultiSelectFeatureCollection(states) as any)
     pulseSource?.setData(toVehiclePulseFeatureCollection(states, now) as any)
-    updateHtmlOverlay(states)
+    updateHtmlOverlay(states, now)
 
     if (followedTarget) {
       let position: [number, number] | undefined
@@ -684,7 +728,7 @@
       flashOn = !flashOn
       if (!styleLoaded) return
       map.setPaintProperty('vehicles-layer', 'icon-opacity', [
-        'case', ['==', ['get', 'onMission'], true], flashOn ? 1 : 0.25, 1,
+        'case', ['==', ['get', 'onMission'], true], flashOn ? 0 : 0, 0,
       ])
     }, 450)
   })
@@ -721,6 +765,46 @@
     {/each}
   </div>
   <div bind:this={mapContainer} class="absolute inset-0 z-0 h-full w-full"></div>
+  <svg class="pointer-events-none absolute inset-0 z-1 h-full w-full overflow-hidden">
+    {#each vehicleTrailLines as line (line.id)}
+      <polyline points={line.points} fill="none" stroke={getVehicleColor(line.status)} stroke-width="2" opacity="0.42" />
+    {/each}
+    {#each vehicleDestinationLines as line (line.id)}
+      <line
+        x1={line.x1}
+        y1={line.y1}
+        x2={line.x2}
+        y2={line.y2}
+        stroke={getVehicleColor(line.status)}
+        stroke-width={line.selected ? 3 : 1.25}
+        stroke-dasharray="5 5"
+        opacity={line.selected ? 0.9 : 0.45}
+      />
+    {/each}
+    {#each contactDestinationLines as line (line.id)}
+      <line
+        x1={line.x1}
+        y1={line.y1}
+        x2={line.x2}
+        y2={line.y2}
+        stroke={getContactColor(line.status)}
+        stroke-width={line.selected ? 3 : 1.5}
+        stroke-dasharray="2 4"
+        opacity={line.selected ? 0.9 : 0.6}
+      />
+    {/each}
+  </svg>
+  <div class="pointer-events-none absolute inset-0 z-4 overflow-hidden">
+    {#each pulseRings as pulse (pulse.id)}
+      <span
+        class="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-sky-400"
+        style="left: {pulse.x}px; top: {pulse.y}px; width: {pulse.size}px; height: {pulse.size}px; opacity: {pulse.opacity};"
+      ></span>
+    {/each}
+    {#if baseMarker}
+      <span class="absolute -translate-x-1/2 -translate-y-1/2 text-lg font-black text-sky-500 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" style="left: {baseMarker.x}px; top: {baseMarker.y}px;">⌂</span>
+    {/if}
+  </div>
   <div class="pointer-events-none absolute inset-0 z-5 overflow-hidden">
     {#each vehicleMarkers as marker (marker.id)}
       <button
