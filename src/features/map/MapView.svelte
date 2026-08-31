@@ -76,7 +76,7 @@
     map = new maplibregl.Map({
       container: mapContainer,
       style: 'https://tiles.openfreemap.org/styles/liberty',
-      center: [11.94, 57.7],
+      center: [19.9, 57.5],
       zoom: 9,
     })
 

@@ -1,7 +1,10 @@
 import type { Mission, Vehicle } from "../../types";
 
-// Fictional patrol area, mock only.
-const ORIGIN: [number, number] = [11.94, 57.7];
+// Fictional patrol area in open water east of Gotland, mock only. Keep radius
+// well clear of Gotland's east coast (~0.9deg away) so vehicles stay at sea.
+export const PATROL_CENTER: [number, number] = [19.9, 57.5];
+export const PATROL_MAX_RADIUS_DEG = 0.28;
+const ORIGIN = PATROL_CENTER;
 
 const VEHICLE_NAMES = [
   "Osprey-01",
@@ -33,7 +36,7 @@ export function createMockVehicles(): Vehicle[] {
   const rand = seededRandom(42);
   return VEHICLE_NAMES.map((name, i) => {
     const angle = rand() * Math.PI * 2;
-    const radius = 0.05 + rand() * 0.25;
+    const radius = 0.03 + rand() * (PATROL_MAX_RADIUS_DEG - 0.05);
     const statusRoll = rand();
     return {
       id: `veh-${i + 1}`,

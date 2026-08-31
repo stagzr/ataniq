@@ -1,6 +1,10 @@
 import type { Vehicle } from "../../types";
 import type { TelemetrySource } from "../types";
-import { createMockVehicles } from "./mockData";
+import {
+  createMockVehicles,
+  PATROL_CENTER,
+  PATROL_MAX_RADIUS_DEG,
+} from "./mockData";
 
 const TICK_MS = 1500;
 
@@ -33,17 +37,30 @@ export class MockTelemetrySource implements TelemetrySource {
 
     // simulate small random-walk drift and heading changes
     const headingDrift = (Math.random() - 0.5) * 20;
-    const heading = (v.heading + headingDrift + 360) % 360;
+    let heading = (v.heading + headingDrift + 360) % 360;
     const speed = Math.max(
       0,
       Math.min(28, v.speed + (Math.random() - 0.5) * 2),
     );
     const distance = (speed * (TICK_MS / 1000)) / 20000; // rough degrees-per-tick scaling
     const rad = (heading * Math.PI) / 180;
-    const position: [number, number] = [
+    let position: [number, number] = [
       v.position[0] + Math.sin(rad) * distance,
       v.position[1] + Math.cos(rad) * distance,
     ];
+
+    // keep vehicles inside the patrol area (open water) by steering back toward the center
+    const dx = position[0] - PATROL_CENTER[0];
+    const dy = position[1] - PATROL_CENTER[1];
+    if (Math.hypot(dx, dy) > PATROL_MAX_RADIUS_DEG) {
+      heading = (Math.atan2(-dx, -dy) * 180) / Math.PI;
+      heading = (heading + 360) % 360;
+      const inwardRad = (heading * Math.PI) / 180;
+      position = [
+        v.position[0] + Math.sin(inwardRad) * distance,
+        v.position[1] + Math.cos(inwardRad) * distance,
+      ];
+    }
 
     const battery = Math.max(0, v.battery - Math.random() * 0.15);
     const connectivity = Math.max(
