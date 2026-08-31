@@ -31,7 +31,7 @@
 
 <div class="grid h-screen grid-cols-[280px_1fr_320px] grid-rows-[auto_1fr] bg-slate-950 text-slate-100">
   <header class="col-span-3 flex items-center justify-between border-b border-slate-800 px-4 py-2">
-    <h1 class="text-sm font-semibold tracking-wide text-slate-200">NAUTRIK GROUND CONTROL</h1>
+    <h1 class="text-sm font-semibold tracking-wide text-slate-200">ATANIQ GROUND CONTROL</h1>
     <div class="flex gap-4 text-xs text-slate-400">
       <span>{vehicles.length} vehicles</span>
       <span>{alerts.filter((a) => !a.acknowledged).length} unacknowledged alerts</span>

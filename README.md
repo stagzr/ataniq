@@ -1,4 +1,4 @@
-# Nautrik Ground Control Station
+# Ataniq Ground Control Station
 
 Frontend-only marine drone fleet monitoring dashboard. No backend required — telemetry, alerts, and video feeds are all simulated client-side, so the app runs entirely as a static site (deployable to GitHub Pages).
 

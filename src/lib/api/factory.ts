@@ -25,22 +25,12 @@ export function createMissionService(): MissionService {
   return new MockMissionService()
 }
 
-const SAMPLE_STREAM_URLS = [
-  'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
-  'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm',
-]
+const SAMPLE_STREAM_URL = `${import.meta.env.BASE_URL}video/ride.mp4`
 
 export function createVideoSource(): VideoSource {
   return {
-    getStreamUrl(vehicleId: string) {
-      const index = Math.abs(hashCode(vehicleId)) % SAMPLE_STREAM_URLS.length
-      return SAMPLE_STREAM_URLS[index]
+    getStreamUrl(_vehicleId: string) {
+      return SAMPLE_STREAM_URL
     },
   }
-}
-
-function hashCode(value: string): number {
-  let hash = 0
-  for (let i = 0; i < value.length; i++) hash = (hash << 5) - hash + value.charCodeAt(i)
-  return hash
 }

@@ -1,4 +1,4 @@
-# Nautrik Ground Control Station Project Plan
+# Ataniq Ground Control Station Project Plan
 
 ## 1. Project Vision
 
