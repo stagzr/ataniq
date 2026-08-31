@@ -511,11 +511,14 @@
 </script>
 
 <div class="relative h-full w-full">
-  <div class="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 shadow-lg backdrop-blur">
-    <label class="flex items-center gap-2">
-      <input type="checkbox" bind:checked={showNames} class="h-3.5 w-3.5 accent-emerald-500" />
-      Show vehicle names
-    </label>
+  <div class="absolute left-3 top-3 z-10 flex items-stretch gap-3">
+    <div class="flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 shadow-lg backdrop-blur">
+      <label class="flex items-center gap-2">
+        <input type="checkbox" bind:checked={showNames} class="h-3.5 w-3.5 accent-emerald-500" />
+        Show vehicle names
+      </label>
+    </div>
+    <slot name="toolbar-extra" />
   </div>
   <div bind:this={mapContainer} class="h-full w-full"></div>
 </div>

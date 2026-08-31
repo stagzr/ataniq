@@ -215,17 +215,21 @@
       {ringHighlightIds}
       onToggleVehicleMultiSelect={toggleVehicleMultiSelect}
       onMapBackgroundClick={handleMapBackgroundClick}
-    />
-    <div class="absolute left-56 top-3 z-10 flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 shadow-lg backdrop-blur">
-      <button
-        type="button"
-        class="rounded px-2 py-1 font-medium {multiActionMode ? 'bg-sky-600 text-white' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'}"
-        title="Select multiple boats (via checkboxes or on the map) and give them a group order: Attack, Inspect, Circle, Line, or Embargo"
-        onclick={toggleMultiActionMode}
+    >
+      <div
+        slot="toolbar-extra"
+        class="flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 shadow-lg backdrop-blur"
       >
-        Multiaction
-      </button>
-    </div>
+        <button
+          type="button"
+          class="rounded px-2 py-1 font-medium {multiActionMode ? 'bg-sky-600 text-white' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'}"
+          title="Select multiple boats (via checkboxes or on the map) and give them a group order: Attack, Inspect, Circle, Line, or Embargo"
+          onclick={toggleMultiActionMode}
+        >
+          Multiaction
+        </button>
+      </div>
+    </MapView>
   </main>
 
   <aside class="flex flex-col divide-y divide-slate-800 overflow-y-auto border-l border-slate-800">
