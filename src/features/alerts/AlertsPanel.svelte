@@ -1,15 +1,20 @@
 <script lang="ts">
-  import type { AlertEvent } from '../../lib/types'
+  import type { AlertEvent, Vehicle } from '../../lib/types'
   import { formatRelativeTime } from '../../lib/formatters'
   import { alertStore } from './alertStore'
 
   export let alerts: AlertEvent[] = []
+  export let vehicles: Vehicle[] = []
   export let onSelectSource: (source: string) => void = () => {}
 
   const SEVERITY_STYLE: Record<AlertEvent['severity'], string> = {
     info: 'border-l-slate-500 text-slate-300',
     warning: 'border-l-amber-500 text-amber-200',
     critical: 'border-l-red-500 text-red-200',
+  }
+
+  function sourceLabel(source: string): string {
+    return vehicles.find((vehicle) => vehicle.id === source)?.name ?? source
   }
 </script>
 
@@ -28,7 +33,7 @@
         <div class="mt-0.5 text-slate-200">{alert.description}</div>
       </button>
       <div class="mt-1 flex items-center justify-between text-slate-500">
-        <span>{alert.source}</span>
+        <span>{sourceLabel(alert.source)}</span>
         {#if !alert.acknowledged}
           <button
             type="button"

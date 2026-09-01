@@ -419,7 +419,7 @@
     </section>
     <section class="flex min-h-0 flex-1 flex-col p-3">
       <h2 class="pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Alerts</h2>
-      <AlertsPanel alerts={visibleAlerts} onSelectSource={openVehicle} />
+      <AlertsPanel alerts={visibleAlerts} {vehicles} onSelectSource={openVehicle} />
     </section>
   </aside>
 </div>
