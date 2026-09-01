@@ -5,13 +5,19 @@
 
   export let vehicles: Vehicle[] = []
   export let contacts: Contact[] = []
+  export let initialLayout: 'tabs' | 'grid' = 'tabs'
+  export let wideGrid = false
+  export let canExpand = false
+  export let isExpanded = false
+  export let onToggleExpanded: () => void = () => {}
+  export let onOpenGrid: (() => void) | undefined = undefined
 
   const videoSource = createVideoSource()
   const ARRIVED_CONTACT_DEG = 0.055
   const STILL_SPEED_KNOTS = 0.5
 
   let activeId: string | undefined = undefined
-  let layout: 'tabs' | 'grid' = 'tabs'
+  let layout: 'tabs' | 'grid' = initialLayout
 
   // keep the active tab valid as the vehicle list changes (e.g. switching missions)
   $: if (!vehicles.some((v) => v.id === activeId)) {
@@ -55,6 +61,11 @@
     return Math.hypot(a[0] - b[0], a[1] - b[1])
   }
 
+  function openFeedInNewTab() {
+    if (!activeVehicle) return
+    window.open(`${location.pathname}${location.search}#video=${activeVehicle.id}`, '_blank')
+  }
+
   // deterministic per-vehicle offset so identical looping clips don't look in sync in the grid
   function staggerStart(video: HTMLVideoElement, vehicleId: string) {
     function onLoaded() {
@@ -90,6 +101,11 @@
       >
         Grid
       </button>
+      {#if onOpenGrid}
+        <button type="button" class="rounded bg-slate-800 px-2 py-1 text-xs font-medium text-slate-300 hover:bg-slate-700" title="Open mission video grid in a new tab" onclick={onOpenGrid}>
+          Open grid
+        </button>
+      {/if}
     </div>
   </div>
   {#if layout === 'tabs'}
@@ -110,7 +126,7 @@
 {/if}
 
 {#if layout === 'grid' && vehicles.length > 1}
-  <div class="grid grid-cols-2 gap-2">
+  <div class="grid gap-2 {wideGrid ? 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4' : 'grid-cols-2'}">
     {#each vehicles as vehicle (vehicle.id)}
       <div class="relative flex aspect-video items-center justify-center overflow-hidden rounded bg-black">
         <video
@@ -139,6 +155,12 @@
         LIVE
       </div>
       <div class="absolute right-2 top-2 rounded bg-black/60 px-2 py-1 text-xs text-slate-300">{activeVehicle?.name}</div>
+      <div class="absolute bottom-2 right-2 flex gap-1">
+        {#if canExpand}
+          <button type="button" class="rounded bg-black/70 px-2 py-1 text-xs font-medium text-white hover:bg-black" title={isExpanded ? 'Return to panel size' : 'Double video size'} onclick={onToggleExpanded}>{isExpanded ? '1x' : '2x'}</button>
+        {/if}
+        <button type="button" class="rounded bg-black/70 px-2 py-1 text-xs font-medium text-white hover:bg-black" title="Open this feed in a new tab" onclick={openFeedInNewTab}>Open</button>
+      </div>
     {:else}
       <div class="text-sm text-slate-600">No feed selected</div>
     {/if}

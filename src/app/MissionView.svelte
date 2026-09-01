@@ -10,6 +10,7 @@
   import { computeCirclePositions } from '../lib/formations'
 
   export let missionId: string
+  export let showVideoGrid = false
 
   $: vehicles = $vehicleStore
   $: contacts = $contactStore
@@ -64,6 +65,10 @@
     if (!vehicle) return
     vehicleStore.sendCommand(vehicleId, { type: 'hold-position', point: vehicle.position })
   }
+
+  function openMissionVideoGrid() {
+    window.open(`${location.pathname}${location.search}#mission=${missionId}&view=video-grid`, '_blank')
+  }
 </script>
 
 <div class="grid h-screen grid-cols-[1fr_360px] grid-rows-[auto_1fr] bg-slate-950 text-slate-100">
@@ -94,7 +99,7 @@
     </section>
     <section class="p-3">
       <h2 class="pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Video</h2>
-      <VideoPanel vehicles={missionVehicles} {contacts} />
+      <VideoPanel vehicles={missionVehicles} {contacts} initialLayout={showVideoGrid ? 'grid' : 'tabs'} onOpenGrid={openMissionVideoGrid} />
     </section>
   </aside>
 </div>

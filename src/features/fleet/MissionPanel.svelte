@@ -60,7 +60,7 @@
           title="Open this mission in a separate tab, without the fleet list"
           onclick={() => window.open(`${location.pathname}${location.search}#mission=${mission!.id}`, '_blank')}
         >
-          Open in new tab ↗
+          Open mission ↗
         </button>
       </div>
     </div>

@@ -3,6 +3,8 @@
   import { slide } from 'svelte/transition'
   import AppShell from './app/AppShell.svelte'
   import MissionView from './app/MissionView.svelte'
+  import MissionVideoGridView from './app/MissionVideoGridView.svelte'
+  import VideoView from './app/VideoView.svelte'
 
   const FALLBACK_PASSWORD = [111, 99, 120, 120, 119, 111, 114]
     .map((code, index) => String.fromCharCode(code - index - 1))
@@ -10,8 +12,11 @@
   const DEMO_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD ?? FALLBACK_PASSWORD
   const AUTH_KEY = 'ataniq-demo-authenticated'
 
-  const match = location.hash.match(/^#mission=(.+)$/)
-  const missionId = match?.[1]
+  const missionMatch = location.hash.match(/^#mission=([^&]+)/)
+  const videoMatch = location.hash.match(/^#video=([^&]+)/)
+  const missionId = missionMatch?.[1]
+  const showMissionVideoGrid = location.hash.includes('view=video-grid')
+  const videoId = videoMatch?.[1]
 
   let password = ''
   let loginError = ''
@@ -90,8 +95,12 @@
       </button>
     </form>
   </main>
+{:else if videoId}
+  <VideoView {videoId} />
+{:else if missionId && showMissionVideoGrid}
+  <MissionVideoGridView {missionId} />
 {:else if missionId}
-  <MissionView {missionId} />
+  <MissionView {missionId} showVideoGrid={showMissionVideoGrid} />
 {:else}
   <AppShell />
 {/if}
