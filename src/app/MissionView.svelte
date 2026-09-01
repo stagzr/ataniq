@@ -6,6 +6,8 @@
   import { vehicleStore } from '../features/fleet/vehicleStore'
   import { contactStore } from '../features/contacts/contactStore'
   import { missionStore } from '../features/fleet/missionStore'
+  import type { FormationGeometry } from '../lib/types'
+  import { computeCirclePositions } from '../lib/formations'
 
   export let missionId: string
 
@@ -15,6 +17,17 @@
   $: missionVehicles = mission ? vehicles.filter((v) => mission!.vehicleIds.includes(v.id)) : []
   $: missionContact = mission?.contactId ? contacts.find((c) => c.id === mission!.contactId) : undefined
   $: ringHighlightIds = mission ? new Set(mission.vehicleIds) : new Set<string>()
+
+  function updateMissionGeometry(id: string, geometry: FormationGeometry) {
+    const currentMission = $missionStore[id]
+    if (!currentMission) return
+    missionStore.updateMission({ ...currentMission, geometry })
+    if (geometry.type !== 'circle') return
+    const points = computeCirclePositions(geometry.center, geometry.radiusDeg, currentMission.vehicleIds.length)
+    currentMission.vehicleIds.forEach((vehicleId, index) => {
+      vehicleStore.sendCommand(vehicleId, { type: 'hold-position', point: points[index], missionId: id })
+    })
+  }
 
   onMount(() => {
     vehicleStore.init()
@@ -56,7 +69,14 @@
   </header>
 
   <main class="relative">
-    <MapView selectedVehicleId={undefined} selectedContactId={undefined} {ringHighlightIds} />
+    <MapView
+      selectedVehicleId={undefined}
+      selectedContactId={undefined}
+      missions={mission ? [mission] : []}
+      selectedMissionId={missionId}
+      onUpdateMissionGeometry={updateMissionGeometry}
+      {ringHighlightIds}
+    />
   </main>
 
   <aside class="flex flex-col divide-y divide-slate-800 overflow-y-auto border-l border-slate-800">

@@ -14,6 +14,7 @@
   import { contactStore } from '../features/contacts/contactStore'
   import { missionStore } from '../features/fleet/missionStore'
   import { findAssignedVehicle, findNearestVehicle } from '../features/contacts/dispatch'
+  import type { FormationGeometry } from '../lib/types'
   import { computeCirclePositions, computeLinePositions } from '../lib/formations'
 
   const CIRCLE_RADIUS_DEG = 0.05
@@ -28,6 +29,8 @@
   let multiSelectedIds: Set<string> = new Set()
   let activeFormationAction: FormationAction | undefined = undefined
   let lineStart: [number, number] | undefined = undefined
+  let circleCenter: [number, number] | undefined = undefined
+  let formationPointer: [number, number] | undefined = undefined
 
   $: vehicles = $vehicleStore
   $: alerts = $alertStore
@@ -155,6 +158,8 @@
     multiSelectedIds = new Set()
     activeFormationAction = undefined
     lineStart = undefined
+    circleCenter = undefined
+    formationPointer = undefined
   }
 
   function toggleVehicleMultiSelect(id: string) {
@@ -171,6 +176,8 @@
   function selectFormationAction(action: FormationAction) {
     activeFormationAction = activeFormationAction === action ? undefined : action
     lineStart = undefined
+    circleCenter = undefined
+    formationPointer = undefined
   }
 
   function dispatchFormationToContact(contactId: string, action: 'attack' | 'inspect') {
@@ -193,10 +200,22 @@
     const ids = [...multiSelectedIds]
 
     if (activeFormationAction === 'circle') {
+      if (!circleCenter) {
+        circleCenter = point
+        formationPointer = point
+        return
+      }
       const missionId = `mission-${Date.now()}`
-      const points = computeCirclePositions(point, CIRCLE_RADIUS_DEG, ids.length)
+      const radiusDeg = Math.max(0.005, Math.hypot(point[0] - circleCenter[0], (point[1] - circleCenter[1]) / 0.6))
+      const points = computeCirclePositions(circleCenter, radiusDeg, ids.length)
       ids.forEach((id, i) => vehicleStore.sendCommand(id, { type: 'hold-position', point: points[i], missionId }))
-      missionStore.addMission({ id: missionId, action: 'circle', vehicleIds: ids, createdAt: Date.now() })
+      missionStore.addMission({
+        id: missionId,
+        action: 'circle',
+        vehicleIds: ids,
+        geometry: { type: 'circle', center: circleCenter, radiusDeg },
+        createdAt: Date.now(),
+      })
       multiActionMode = false
       resetMultiAction()
       return
@@ -205,6 +224,7 @@
     if (activeFormationAction === 'line' || activeFormationAction === 'embargo') {
       if (!lineStart) {
         lineStart = point
+        formationPointer = point
         return
       }
       const missionId = `mission-${Date.now()}`
@@ -214,9 +234,33 @@
       ids.forEach((id, i) =>
         vehicleStore.sendCommand(id, { type: 'hold-position', point: points[i], embargoLine, missionId }),
       )
-      missionStore.addMission({ id: missionId, action: activeFormationAction, vehicleIds: ids, createdAt: Date.now() })
+      missionStore.addMission({
+        id: missionId,
+        action: activeFormationAction,
+        vehicleIds: ids,
+        geometry: { type: 'line', start: lineStart, end: point },
+        createdAt: Date.now(),
+      })
       multiActionMode = false
       resetMultiAction()
+    }
+  }
+
+  function updateMissionGeometry(missionId: string, geometry: FormationGeometry) {
+    const mission = missions[missionId]
+    if (!mission) return
+    missionStore.updateMission({ ...mission, geometry })
+    if (geometry.type !== 'circle') return
+    const points = computeCirclePositions(geometry.center, geometry.radiusDeg, mission.vehicleIds.length)
+    mission.vehicleIds.forEach((vehicleId, index) => {
+      vehicleStore.sendCommand(vehicleId, { type: 'hold-position', point: points[index], missionId })
+    })
+  }
+
+  function updateFormationPointer(point: [number, number]) {
+    if ((activeFormationAction === 'circle' && circleCenter) ||
+      ((activeFormationAction === 'line' || activeFormationAction === 'embargo') && lineStart)) {
+      formationPointer = point
     }
   }
 
@@ -270,6 +314,23 @@
       onStopFollow={() => (followedTarget = undefined)}
       multiSelectMode={multiActionMode}
       {ringHighlightIds}
+      missions={missionList}
+      {selectedMissionId}
+      draftGeometry={
+        activeFormationAction === 'circle' && circleCenter
+          ? {
+              type: 'circle',
+              center: circleCenter,
+              radiusDeg: Math.max(0.005, Math.hypot((formationPointer?.[0] ?? circleCenter[0]) - circleCenter[0], ((formationPointer?.[1] ?? circleCenter[1]) - circleCenter[1]) / 0.6)),
+            }
+          : activeFormationAction === 'line' || activeFormationAction === 'embargo'
+            ? lineStart
+              ? { type: 'line', start: lineStart, end: formationPointer ?? lineStart }
+              : undefined
+            : undefined
+      }
+      onMapPointerMove={updateFormationPointer}
+      onUpdateMissionGeometry={updateMissionGeometry}
       onToggleVehicleMultiSelect={toggleVehicleMultiSelect}
       onMapBackgroundClick={handleMapBackgroundClick}
     >

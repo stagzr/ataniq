@@ -2,7 +2,7 @@
   import * as maplibregl from 'maplibre-gl'
   import 'maplibre-gl/dist/maplibre-gl.css'
   import { onDestroy, onMount } from 'svelte'
-  import type { Contact, InterceptMarker, Vehicle } from '../../lib/types'
+  import type { Contact, FormationGeometry, FormationMission, InterceptMarker, Vehicle } from '../../lib/types'
   import { getBaseLocation } from '../../lib/api/factory'
   import { formatBattery, formatHeading, formatRelativeTime, formatSpeed } from '../../lib/formatters'
   import { VehicleAnimator } from './animation'
@@ -17,6 +17,11 @@
   export let onStopFollow: () => void = () => {}
   export let multiSelectMode = false
   export let ringHighlightIds: Set<string> = new Set()
+  export let missions: FormationMission[] = []
+  export let selectedMissionId: string | undefined = undefined
+  export let draftGeometry: FormationGeometry | undefined = undefined
+  export let onUpdateMissionGeometry: (missionId: string, geometry: FormationGeometry) => void = () => {}
+  export let onMapPointerMove: (point: [number, number]) => void = () => {}
   export let onToggleVehicleMultiSelect: (id: string) => void = () => {}
   export let onMapBackgroundClick: (point: [number, number]) => void = () => {}
 
@@ -37,11 +42,16 @@
   let vehicleTrailLines: Array<{ id: string; status: Vehicle['status']; points: string }> = []
   let vehicleDestinationLines: Array<{ id: string; status: Vehicle['status']; x1: number; y1: number; x2: number; y2: number; selected: boolean }> = []
   let contactDestinationLines: Array<{ id: string; status: Contact['status']; x1: number; y1: number; x2: number; y2: number; selected: boolean }> = []
+  let missionLineDrawings: Array<{ id: string; x1: number; y1: number; x2: number; y2: number; selected: boolean; embargo: boolean; draft: boolean }> = []
+  let missionLineAnchors: Array<{ id: string; x: number; y: number }> = []
+  let missionCircleDrawings: Array<{ id: string; x: number; y: number; radiusX: number; radiusY: number; selected: boolean; draft: boolean }> = []
   let vehicleMarkers: Array<{ id: string; name: string; status: Vehicle['status']; x: number; y: number; heading: number }> = []
   let contactMarkers: Array<{ id: string; label: string; status: Contact['status']; x: number; y: number }> = []
   let pulseRings: Array<{ id: string; x: number; y: number; size: number; opacity: number }> = []
   let baseMarker: { x: number; y: number } | undefined
   let vehiclePulses: Array<{ id: string; vehicleId: string; startedAt: number }> = []
+  let geometryOverrides = new Map<string, FormationGeometry>()
+  let circleDrag: { missionId: string; geometry: Extract<FormationGeometry, { type: 'circle' }>; start: [number, number]; mode: 'move' | 'resize' } | undefined
   let lastPulseSelectedVehicleId: string | undefined = undefined
   let lastPulseFollowedVehicleId: string | undefined = undefined
   let flashOn = true
@@ -51,6 +61,7 @@
   $: if (styleLoaded) setSelectedContact(selectedContactId)
   $: if (styleLoaded) triggerSelectedVehiclePulse(selectedVehicleId)
   $: if (styleLoaded) triggerFollowedVehiclePulse(followedTarget)
+  $: if (styleLoaded) refreshMissionSources()
 
   function setNamesVisible(show: boolean): void {
     map.setLayoutProperty('vehicles-layer', 'text-field', show ? ['get', 'name'] : '')
@@ -357,10 +368,23 @@
 
   function toVehiclePulseFeatureCollection(states: ReturnType<VehicleAnimator['getInterpolatedState']>, now: number) {
     const stateById = new Map(states.map((state) => [state.id, state]))
+    const persistentIds = new Set(ringHighlightIds)
+    if (selectedVehicleId) persistentIds.add(selectedVehicleId)
     return {
       type: 'FeatureCollection' as const,
-      features: vehiclePulses
+      features: [
+        ...[...persistentIds].map((vehicleId) => {
+          const state = stateById.get(vehicleId)
+          if (!state) return undefined
+          return {
+            type: 'Feature' as const,
+            geometry: { type: 'Point' as const, coordinates: [state.lng, state.lat] },
+            properties: { id: `persistent-${vehicleId}`, progress: (now % 1800) / 1800 },
+          }
+        }),
+        ...vehiclePulses
         .map((pulse) => {
+          if (persistentIds.has(pulse.vehicleId)) return undefined
           const state = stateById.get(pulse.vehicleId)
           if (!state) return undefined
           const progress = Math.min(1, (now - pulse.startedAt) / 2000)
@@ -370,8 +394,54 @@
             properties: { id: pulse.id, progress },
           }
         })
-        .filter((feature): feature is NonNullable<typeof feature> => Boolean(feature)),
+      ].filter((feature): feature is NonNullable<typeof feature> => Boolean(feature)),
     }
+  }
+
+  function getMissionGeometry(mission: FormationMission): FormationGeometry | undefined {
+    return geometryOverrides.get(mission.id) ?? mission.geometry
+  }
+
+  function circleCoordinates(center: [number, number], radiusDeg: number): [number, number][] {
+    return Array.from({ length: 49 }, (_, index) => {
+      const angle = (index / 48) * Math.PI * 2
+      return [center[0] + Math.sin(angle) * radiusDeg, center[1] + Math.cos(angle) * radiusDeg * 0.6]
+    })
+  }
+
+  function toMissionFeatureCollection() {
+    return {
+      type: 'FeatureCollection' as const,
+      features: missions.flatMap<any>((mission) => {
+        const geometry = getMissionGeometry(mission)
+        if (!geometry) return []
+        const properties = { id: mission.id, selected: mission.id === selectedMissionId, action: mission.action }
+        if (geometry.type === 'line') {
+          return [{ type: 'Feature' as const, geometry: { type: 'LineString' as const, coordinates: [geometry.start, geometry.end] }, properties }]
+        }
+        return [{ type: 'Feature' as const, geometry: { type: 'Polygon' as const, coordinates: [circleCoordinates(geometry.center, geometry.radiusDeg)] }, properties }]
+      }),
+    }
+  }
+
+  function toMissionHandleFeatureCollection() {
+    const mission = missions.find((candidate) => candidate.id === selectedMissionId)
+    const geometry = mission && getMissionGeometry(mission)
+    if (!mission || !geometry || geometry.type !== 'circle') return { type: 'FeatureCollection' as const, features: [] }
+    return {
+      type: 'FeatureCollection' as const,
+      features: [
+        { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: geometry.center }, properties: { id: mission.id, mode: 'move' } },
+        { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: [geometry.center[0] + geometry.radiusDeg, geometry.center[1]] }, properties: { id: mission.id, mode: 'resize' } },
+      ],
+    }
+  }
+
+  function refreshMissionSources() {
+    const areaSource = map?.getSource('mission-areas') as maplibregl.GeoJSONSource | undefined
+    const handleSource = map?.getSource('mission-handles') as maplibregl.GeoJSONSource | undefined
+    areaSource?.setData(toMissionFeatureCollection() as any)
+    handleSource?.setData(toMissionHandleFeatureCollection() as any)
   }
 
   function lngLatToWorldPoint(lng: number, lat: number, zoom: number) {
@@ -425,6 +495,26 @@
       const start = map.project(contact.position)
       const end = map.project(contact.destination)
       return { id: contact.id, status: contact.status, x1: start.x, y1: start.y, x2: end.x, y2: end.y, selected: selectedContactId === contact.id }
+    })
+    const visibleMissionAreas = [
+      ...missions.map((mission) => ({ id: mission.id, geometry: getMissionGeometry(mission), selected: mission.id === selectedMissionId, embargo: mission.action === 'embargo', draft: false })),
+      ...(draftGeometry ? [{ id: 'draft', geometry: draftGeometry, selected: true, embargo: false, draft: true }] : []),
+    ]
+    missionLineDrawings = visibleMissionAreas.flatMap((area) => {
+      if (!area.geometry || area.geometry.type !== 'line') return []
+      const start = map.project(area.geometry.start)
+      const end = map.project(area.geometry.end)
+      return [{ id: area.id, x1: start.x, y1: start.y, x2: end.x, y2: end.y, selected: area.selected, embargo: area.embargo, draft: area.draft }]
+    })
+    missionLineAnchors = missionLineDrawings
+      .filter((line) => line.draft)
+      .map((line) => ({ id: line.id, x: line.x1, y: line.y1 }))
+    missionCircleDrawings = visibleMissionAreas.flatMap((area) => {
+      if (!area.geometry || area.geometry.type !== 'circle') return []
+      const center = map.project(area.geometry.center)
+      const east = map.project([area.geometry.center[0] + area.geometry.radiusDeg, area.geometry.center[1]])
+      const north = map.project([area.geometry.center[0], area.geometry.center[1] + area.geometry.radiusDeg * 0.6])
+      return [{ id: area.id, x: center.x, y: center.y, radiusX: Math.abs(east.x - center.x), radiusY: Math.abs(north.y - center.y), selected: area.selected, draft: area.draft }]
     })
     vehicleMarkers = states.map((state) => {
       const point = map.project([state.lng, state.lat])
@@ -566,6 +656,41 @@
         },
       })
 
+      map.addSource('mission-areas', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: 'mission-areas-fill',
+        type: 'fill',
+        source: 'mission-areas',
+        filter: ['==', '$type', 'Polygon'],
+        paint: {
+          'fill-color': '#38bdf8',
+          'fill-opacity': ['case', ['get', 'selected'], 0.18, 0.08],
+        },
+      })
+      map.addLayer({
+        id: 'mission-areas-outline',
+        type: 'line',
+        source: 'mission-areas',
+        paint: {
+          'line-color': '#38bdf8',
+          'line-width': ['case', ['get', 'selected'], 3, 2],
+          'line-opacity': ['case', ['get', 'selected'], 1, 0.65],
+          'line-dasharray': ['case', ['==', ['get', 'action'], 'embargo'], ['literal', [2, 1]], ['literal', [1, 0]]],
+        },
+      })
+      map.addSource('mission-handles', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: 'mission-handles-layer',
+        type: 'circle',
+        source: 'mission-handles',
+        paint: {
+          'circle-radius': ['case', ['==', ['get', 'mode'], 'move'], 7, 6],
+          'circle-color': ['case', ['==', ['get', 'mode'], 'move'], '#0f172a', '#38bdf8'],
+          'circle-stroke-color': '#e0f2fe',
+          'circle-stroke-width': 2,
+        },
+      })
+
       map.addSource('vehicle-pulses', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({
         id: 'vehicle-pulses-layer',
@@ -694,9 +819,52 @@
       map.on('mouseenter', 'contacts-layer', () => (map.getCanvas().style.cursor = 'pointer'))
       map.on('mouseleave', 'contacts-layer', () => (map.getCanvas().style.cursor = ''))
 
+      map.on('mousedown', 'mission-handles-layer', (e: maplibregl.MapLayerMouseEvent) => {
+        const id = e.features?.[0]?.properties?.id
+        const mode = e.features?.[0]?.properties?.mode
+        const mission = typeof id === 'string' ? missions.find((candidate) => candidate.id === id) : undefined
+        const geometry = mission && getMissionGeometry(mission)
+        if (!mission || !geometry || geometry.type !== 'circle' || (mode !== 'move' && mode !== 'resize')) return
+        circleDrag = { missionId: mission.id, geometry, start: [e.lngLat.lng, e.lngLat.lat], mode }
+        map.dragPan.disable()
+        map.getCanvas().style.cursor = 'grabbing'
+      })
+      map.on('mousedown', 'mission-areas-fill', (e: maplibregl.MapLayerMouseEvent) => {
+        const id = e.features?.[0]?.properties?.id
+        const mission = typeof id === 'string' ? missions.find((candidate) => candidate.id === id) : undefined
+        const geometry = mission && getMissionGeometry(mission)
+        if (!mission || mission.id !== selectedMissionId || !geometry || geometry.type !== 'circle') return
+        circleDrag = { missionId: mission.id, geometry, start: [e.lngLat.lng, e.lngLat.lat], mode: 'move' }
+        map.dragPan.disable()
+        map.getCanvas().style.cursor = 'grabbing'
+      })
+      map.on('mousemove', (e: maplibregl.MapMouseEvent) => {
+        onMapPointerMove([e.lngLat.lng, e.lngLat.lat])
+        if (!circleDrag) return
+        const { geometry, start, mode } = circleDrag
+        const nextGeometry: FormationGeometry = mode === 'move'
+          ? { type: 'circle', center: [geometry.center[0] + e.lngLat.lng - start[0], geometry.center[1] + e.lngLat.lat - start[1]], radiusDeg: geometry.radiusDeg }
+          : { type: 'circle', center: geometry.center, radiusDeg: Math.max(0.005, Math.hypot(e.lngLat.lng - geometry.center[0], (e.lngLat.lat - geometry.center[1]) / 0.6)) }
+        geometryOverrides = new Map(geometryOverrides).set(circleDrag.missionId, nextGeometry)
+        refreshMissionSources()
+      })
+      map.on('mouseup', () => {
+        if (!circleDrag) return
+        const geometry = geometryOverrides.get(circleDrag.missionId)
+        const missionId = circleDrag.missionId
+        circleDrag = undefined
+        map.dragPan.enable()
+        map.getCanvas().style.cursor = ''
+        if (geometry) onUpdateMissionGeometry(missionId, geometry)
+      })
+      map.on('mouseenter', 'mission-handles-layer', () => (map.getCanvas().style.cursor = 'grab'))
+      map.on('mouseleave', 'mission-handles-layer', () => {
+        if (!circleDrag) map.getCanvas().style.cursor = ''
+      })
+
       // background clicks (not on a vehicle/contact) are used for formation placement
       map.on('click', (e: maplibregl.MapMouseEvent) => {
-        const hits = map.queryRenderedFeatures(e.point, { layers: ['vehicles-layer', 'contacts-layer'] })
+        const hits = map.queryRenderedFeatures(e.point, { layers: ['vehicles-layer', 'contacts-layer', 'mission-areas-fill', 'mission-areas-outline', 'mission-handles-layer'] })
         if (hits.length === 0) onMapBackgroundClick([e.lngLat.lng, e.lngLat.lat])
       })
 
@@ -706,6 +874,7 @@
       })
 
       styleLoaded = true
+      refreshMissionSources()
       rafId = requestAnimationFrame(renderFrame)
     })
 
@@ -766,6 +935,35 @@
   </div>
   <div bind:this={mapContainer} class="absolute inset-0 z-0 h-full w-full"></div>
   <svg class="pointer-events-none absolute inset-0 z-1 h-full w-full overflow-hidden">
+    {#each missionCircleDrawings as circle (circle.id)}
+      <ellipse
+        cx={circle.x}
+        cy={circle.y}
+        rx={circle.radiusX}
+        ry={circle.radiusY}
+        fill="#38bdf8"
+        fill-opacity={circle.selected ? 0.18 : 0.08}
+        stroke="#38bdf8"
+        stroke-width={circle.selected ? 3 : 2}
+        stroke-opacity={circle.draft ? 0.8 : 1}
+        stroke-dasharray={circle.draft ? '7 5' : undefined}
+      />
+    {/each}
+    {#each missionLineDrawings as line (line.id)}
+      <line
+        x1={line.x1}
+        y1={line.y1}
+        x2={line.x2}
+        y2={line.y2}
+        stroke="#38bdf8"
+        stroke-width={line.selected ? 4 : 3}
+        stroke-opacity={line.draft ? 0.8 : 1}
+        stroke-dasharray={line.embargo || line.draft ? '8 5' : undefined}
+      />
+    {/each}
+    {#each missionLineAnchors as anchor (anchor.id)}
+      <circle cx={anchor.x} cy={anchor.y} r="7" fill="#0f172a" stroke="#38bdf8" stroke-width="3" />
+    {/each}
     {#each vehicleTrailLines as line (line.id)}
       <polyline points={line.points} fill="none" stroke={getVehicleColor(line.status)} stroke-width="2" opacity="0.42" />
     {/each}

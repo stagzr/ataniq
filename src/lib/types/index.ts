@@ -72,11 +72,16 @@ export type FormationActionType =
   | "line"
   | "embargo";
 
+export type FormationGeometry =
+  | { type: "circle"; center: [number, number]; radiusDeg: number }
+  | { type: "line"; start: [number, number]; end: [number, number] };
+
 export interface FormationMission {
   id: string;
   action: FormationActionType;
   vehicleIds: string[];
   contactId?: string;
+  geometry?: FormationGeometry;
   createdAt: number;
 }
 

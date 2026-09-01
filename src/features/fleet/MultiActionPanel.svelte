@@ -23,8 +23,8 @@
     {
       id: 'circle',
       label: 'Circle',
-      hint: 'Click the map to spread the selection in a circle',
-      description: 'Spread the selected boats evenly around a point in a circle formation. Click anywhere on the map after selecting this.',
+      hint: 'Click the center, then click the circle edge to set its size',
+      description: 'Spread the selected boats evenly around a point in a circle formation. Click the center, then click the circle edge to set its size.',
     },
     {
       id: 'line',
