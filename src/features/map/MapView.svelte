@@ -30,11 +30,11 @@
   let map: maplibregl.Map
   let animator = new VehicleAnimator()
   let rafId: number
+  let initializationTimer: ReturnType<typeof setTimeout> | undefined
   let unsubscribeVehicles: () => void
   let unsubscribeContacts: () => void
   let styleLoaded = false
   let layersInitialized = false
-  let mapInitializationError: string | undefined
   let showNames = true
   let latestContacts: Contact[] = []
   let latestVehicles = new Map<string, Vehicle>()
@@ -115,15 +115,8 @@
 
   const BASEMAP_STYLE: maplibregl.StyleSpecification = {
     version: 8,
-    sources: {
-      'osm-standard': {
-        type: 'raster',
-        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-        tileSize: 256,
-        attribution: '© OpenStreetMap contributors',
-      },
-    },
-    layers: [{ id: 'osm-standard', type: 'raster', source: 'osm-standard' }],
+    sources: {},
+    layers: [{ id: 'water', type: 'background', paint: { 'background-color': '#082f49' } }],
   }
   const ORDER_LABEL: Record<Vehicle['order']['type'], string> = {
     patrol: 'On patrol',
@@ -590,6 +583,24 @@
 
       map.addSource('vehicles', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({
+        id: 'vehicle-bodies-layer',
+        type: 'circle',
+        source: 'vehicles',
+        paint: {
+          'circle-radius': 6,
+          'circle-color': [
+            'match', ['get', 'status'],
+            'active', STATUS_COLORS.active,
+            'idle', STATUS_COLORS.idle,
+            'warning', STATUS_COLORS.warning,
+            'critical', STATUS_COLORS.critical,
+            STATUS_COLORS.offline,
+          ],
+          'circle-stroke-color': '#e2e8f0',
+          'circle-stroke-width': 1,
+        },
+      })
+      map.addLayer({
         id: 'vehicles-layer',
         type: 'symbol',
         source: 'vehicles',
@@ -739,7 +750,21 @@
         },
       })
 
+      map.addSource('osm-standard', {
+        type: 'raster',
+        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        attribution: '© OpenStreetMap contributors',
+      })
+      map.addLayer({ id: 'osm-standard', type: 'raster', source: 'osm-standard' }, 'trails-layer')
+
       map.on('click', 'vehicles-layer', (e: maplibregl.MapLayerMouseEvent) => {
+        const id = e.features?.[0]?.properties?.id
+        if (!id) return
+        if (multiSelectMode) onToggleVehicleMultiSelect(id)
+        else onSelectVehicle(id)
+      })
+      map.on('click', 'vehicle-bodies-layer', (e: maplibregl.MapLayerMouseEvent) => {
         const id = e.features?.[0]?.properties?.id
         if (!id) return
         if (multiSelectMode) onToggleVehicleMultiSelect(id)
@@ -756,8 +781,17 @@
         map.getCanvas().style.cursor = 'pointer'
         showVehiclePopup(e)
       })
+      map.on('mouseenter', 'vehicle-bodies-layer', (e: maplibregl.MapLayerMouseEvent) => {
+        map.getCanvas().style.cursor = 'pointer'
+        showVehiclePopup(e)
+      })
       map.on('mousemove', 'vehicles-layer', showVehiclePopup)
+      map.on('mousemove', 'vehicle-bodies-layer', showVehiclePopup)
       map.on('mouseleave', 'vehicles-layer', () => {
+        map.getCanvas().style.cursor = ''
+        vehiclePopup?.remove()
+      })
+      map.on('mouseleave', 'vehicle-bodies-layer', () => {
         map.getCanvas().style.cursor = ''
         vehiclePopup?.remove()
       })
@@ -809,7 +843,7 @@
 
       // background clicks (not on a vehicle/contact) are used for formation placement
       map.on('click', (e: maplibregl.MapMouseEvent) => {
-        const hits = map.queryRenderedFeatures(e.point, { layers: ['vehicles-layer', 'contacts-layer', 'mission-areas-fill', 'mission-areas-outline', 'mission-areas-dashed-outline', 'mission-handles-layer'] })
+        const hits = map.queryRenderedFeatures(e.point, { layers: ['vehicles-layer', 'vehicle-bodies-layer', 'contacts-layer', 'mission-areas-fill', 'mission-areas-outline', 'mission-areas-dashed-outline', 'mission-handles-layer'] })
         const nonDraftHits = hits.filter((feature) => feature.properties?.draft !== true && feature.properties?.draft !== 'true')
         if (nonDraftHits.length === 0) onMapBackgroundClick([e.lngLat.lng, e.lngLat.lat])
       })
@@ -823,12 +857,15 @@
       styleLoaded = true
       refreshMissionSources()
       rafId = requestAnimationFrame(renderFrame)
-      } catch (error) {
-        mapInitializationError = error instanceof Error ? error.message : String(error)
-      }
+      } catch {}
     }
 
-    map.on('load', initializeMapLayers)
+    const retryInitializeMapLayers = () => {
+      if (layersInitialized) return
+      initializeMapLayers()
+      if (!layersInitialized) initializationTimer = setTimeout(retryInitializeMapLayers, 50)
+    }
+    initializationTimer = setTimeout(retryInitializeMapLayers, 0)
 
     unsubscribeVehicles = vehicleStore.subscribe((vehicles) => {
       latestVehicles = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
@@ -849,6 +886,7 @@
 
   onDestroy(() => {
     cancelAnimationFrame(rafId)
+    if (initializationTimer) clearTimeout(initializationTimer)
     unsubscribeVehicles?.()
     unsubscribeContacts?.()
     vehiclePopup?.remove()
@@ -867,7 +905,4 @@
     <slot name="toolbar-extra" />
   </div>
   <div bind:this={mapContainer} class="absolute inset-0 z-0 h-full w-full"></div>
-  {#if mapInitializationError}
-    <div class="absolute bottom-3 left-3 z-10 max-w-md rounded bg-red-950/90 px-3 py-2 font-mono text-xs text-red-200">Map initialization failed: {mapInitializationError}</div>
-  {/if}
 </div>
