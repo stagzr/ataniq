@@ -487,10 +487,10 @@
     const initializeMapLayers = () => {
       if (layersInitialized) return
       try {
-      map.addImage('vehicle-arrow', buildArrowIcon(32), { sdf: true })
-      map.addImage('contact-diamond', buildDiamondIcon(28), { sdf: true })
-      map.addImage('base-icon', buildBaseIcon(28), { sdf: true })
-      map.addImage('intercept-cross', buildCrossIcon(20), { sdf: true })
+      if (!map.hasImage('vehicle-arrow')) map.addImage('vehicle-arrow', buildArrowIcon(32), { sdf: true })
+      if (!map.hasImage('contact-diamond')) map.addImage('contact-diamond', buildDiamondIcon(28), { sdf: true })
+      if (!map.hasImage('base-icon')) map.addImage('base-icon', buildBaseIcon(28), { sdf: true })
+      if (!map.hasImage('intercept-cross')) map.addImage('intercept-cross', buildCrossIcon(20), { sdf: true })
 
       map.addSource('trails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({
