@@ -406,7 +406,10 @@ export class MockTelemetrySource implements TelemetrySource {
     }
 
     // on station: hold still, and if embargoing, watch for contacts nearing the line
-    const holdingOrder = order.phase === "holding" ? order : { ...order, phase: "holding" as const };
+    const holdingOrder =
+      order.phase === "holding"
+        ? order
+        : { ...order, phase: "holding" as const };
     this.orders.set(v.id, holdingOrder);
     if (holdingOrder.embargoLine) {
       const alreadyHandled = new Set(
