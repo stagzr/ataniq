@@ -34,6 +34,7 @@
   let unsubscribeContacts: () => void
   let styleLoaded = false
   let layersInitialized = false
+  let mapInitializationError: string | undefined
   let showNames = true
   let latestContacts: Contact[] = []
   let latestVehicles = new Map<string, Vehicle>()
@@ -114,8 +115,15 @@
 
   const BASEMAP_STYLE: maplibregl.StyleSpecification = {
     version: 8,
-    sources: {},
-    layers: [{ id: 'water', type: 'background', paint: { 'background-color': '#082f49' } }],
+    sources: {
+      'osm-standard': {
+        type: 'raster',
+        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        attribution: '© OpenStreetMap contributors',
+      },
+    },
+    layers: [{ id: 'osm-standard', type: 'raster', source: 'osm-standard' }],
   }
   const ORDER_LABEL: Record<Vehicle['order']['type'], string> = {
     patrol: 'On patrol',
@@ -485,19 +493,11 @@
 
     const initializeMapLayers = () => {
       if (layersInitialized) return
-      layersInitialized = true
+      try {
       map.addImage('vehicle-arrow', buildArrowIcon(32), { sdf: true })
       map.addImage('contact-diamond', buildDiamondIcon(28), { sdf: true })
       map.addImage('base-icon', buildBaseIcon(28), { sdf: true })
       map.addImage('intercept-cross', buildCrossIcon(20), { sdf: true })
-
-      map.addSource('osm-standard', {
-        type: 'raster',
-        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-        tileSize: 256,
-        attribution: '© OpenStreetMap contributors',
-      })
-      map.addLayer({ id: 'osm-standard', type: 'raster', source: 'osm-standard' })
 
       map.addSource('trails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({
@@ -570,65 +570,6 @@
           'circle-radius': 14,
           'circle-color': 'transparent',
           'circle-stroke-color': '#38bdf8',
-          'circle-stroke-width': 2,
-        },
-      })
-
-      map.addSource('mission-areas', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-      map.addLayer({
-        id: 'mission-areas-fill',
-        type: 'fill',
-        source: 'mission-areas',
-        filter: ['==', '$type', 'Polygon'],
-        paint: {
-          'fill-color': '#38bdf8',
-          'fill-opacity': ['case', ['get', 'selected'], 0.18, 0.08],
-        },
-      })
-      map.addLayer({
-        id: 'mission-areas-outline',
-        type: 'line',
-        source: 'mission-areas',
-        filter: ['all', ['!=', ['get', 'action'], 'embargo'], ['!=', ['get', 'draft'], true]],
-        paint: {
-          'line-color': '#38bdf8',
-          'line-width': ['case', ['get', 'selected'], 3, 2],
-          'line-opacity': ['case', ['get', 'selected'], 1, 0.65],
-        },
-      })
-      map.addLayer({
-        id: 'mission-areas-dashed-outline',
-        type: 'line',
-        source: 'mission-areas',
-        filter: ['any', ['==', ['get', 'action'], 'embargo'], ['==', ['get', 'draft'], true]],
-        paint: {
-          'line-color': '#38bdf8',
-          'line-width': ['case', ['get', 'selected'], 3, 2],
-          'line-opacity': ['case', ['get', 'selected'], 1, 0.65],
-          'line-dasharray': [2, 1],
-        },
-      })
-      map.addSource('mission-draft-anchor', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-      map.addLayer({
-        id: 'mission-draft-anchor-layer',
-        type: 'circle',
-        source: 'mission-draft-anchor',
-        paint: {
-          'circle-radius': 7,
-          'circle-color': '#0f172a',
-          'circle-stroke-color': '#38bdf8',
-          'circle-stroke-width': 3,
-        },
-      })
-      map.addSource('mission-handles', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-      map.addLayer({
-        id: 'mission-handles-layer',
-        type: 'circle',
-        source: 'mission-handles',
-        paint: {
-          'circle-radius': ['case', ['==', ['get', 'mode'], 'move'], 7, 6],
-          'circle-color': ['case', ['==', ['get', 'mode'], 'move'], '#0f172a', '#38bdf8'],
-          'circle-stroke-color': '#e0f2fe',
           'circle-stroke-width': 2,
         },
       })
@@ -739,6 +680,65 @@
         },
       })
 
+      map.addSource('mission-areas', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: 'mission-areas-fill',
+        type: 'fill',
+        source: 'mission-areas',
+        filter: ['==', '$type', 'Polygon'],
+        paint: {
+          'fill-color': '#38bdf8',
+          'fill-opacity': ['case', ['get', 'selected'], 0.18, 0.08],
+        },
+      })
+      map.addLayer({
+        id: 'mission-areas-outline',
+        type: 'line',
+        source: 'mission-areas',
+        filter: ['all', ['!=', ['get', 'action'], 'embargo'], ['!=', ['get', 'draft'], true]],
+        paint: {
+          'line-color': '#38bdf8',
+          'line-width': ['case', ['get', 'selected'], 3, 2],
+          'line-opacity': ['case', ['get', 'selected'], 1, 0.65],
+        },
+      })
+      map.addLayer({
+        id: 'mission-areas-dashed-outline',
+        type: 'line',
+        source: 'mission-areas',
+        filter: ['any', ['==', ['get', 'action'], 'embargo'], ['==', ['get', 'draft'], true]],
+        paint: {
+          'line-color': '#38bdf8',
+          'line-width': ['case', ['get', 'selected'], 3, 2],
+          'line-opacity': ['case', ['get', 'selected'], 1, 0.65],
+          'line-dasharray': [2, 1],
+        },
+      })
+      map.addSource('mission-draft-anchor', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: 'mission-draft-anchor-layer',
+        type: 'circle',
+        source: 'mission-draft-anchor',
+        paint: {
+          'circle-radius': 7,
+          'circle-color': '#0f172a',
+          'circle-stroke-color': '#38bdf8',
+          'circle-stroke-width': 3,
+        },
+      })
+      map.addSource('mission-handles', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: 'mission-handles-layer',
+        type: 'circle',
+        source: 'mission-handles',
+        paint: {
+          'circle-radius': ['case', ['==', ['get', 'mode'], 'move'], 7, 6],
+          'circle-color': ['case', ['==', ['get', 'mode'], 'move'], '#0f172a', '#38bdf8'],
+          'circle-stroke-color': '#e0f2fe',
+          'circle-stroke-width': 2,
+        },
+      })
+
       map.on('click', 'vehicles-layer', (e: maplibregl.MapLayerMouseEvent) => {
         const id = e.features?.[0]?.properties?.id
         if (!id) return
@@ -819,13 +819,16 @@
         if (followedTarget) onStopFollow()
       })
 
+      layersInitialized = true
       styleLoaded = true
       refreshMissionSources()
       rafId = requestAnimationFrame(renderFrame)
+      } catch (error) {
+        mapInitializationError = error instanceof Error ? error.message : String(error)
+      }
     }
 
-    if (map.isStyleLoaded()) initializeMapLayers()
-    else map.once('styledata', initializeMapLayers)
+    map.on('load', initializeMapLayers)
 
     unsubscribeVehicles = vehicleStore.subscribe((vehicles) => {
       latestVehicles = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
@@ -864,4 +867,7 @@
     <slot name="toolbar-extra" />
   </div>
   <div bind:this={mapContainer} class="absolute inset-0 z-0 h-full w-full"></div>
+  {#if mapInitializationError}
+    <div class="absolute bottom-3 left-3 z-10 max-w-md rounded bg-red-950/90 px-3 py-2 font-mono text-xs text-red-200">Map initialization failed: {mapInitializationError}</div>
+  {/if}
 </div>
