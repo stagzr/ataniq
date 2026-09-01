@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte'
   import type { Vehicle } from '../../lib/types'
   import { formatBattery, formatHeading, formatRelativeTime, formatSpeed } from '../../lib/formatters'
 
@@ -9,6 +10,8 @@
   export let onToggleFollow: (id: string) => void = () => {}
   export let onOpenMission: (missionId: string) => void = () => {}
   export let onAbortCurrentMission: (vehicle: Vehicle) => void = () => {}
+  export let onRenameVehicle: (id: string, name: string) => void = () => {}
+  export let onStartAction: (id: string) => void = () => {}
 
   const ORDER_LABEL: Record<Vehicle['order']['type'], string> = {
     patrol: 'On patrol',
@@ -23,12 +26,44 @@
   }
 
   $: missionId = vehicle ? getMissionId(vehicle.order) : undefined
+
+  let editingName = false
+  let nameDraft = ''
+  let nameInput: HTMLInputElement | undefined
+
+  function startRename() {
+    if (!vehicle) return
+    nameDraft = vehicle.name
+    editingName = true
+    void tick().then(() => nameInput?.focus())
+  }
+
+  function saveRename() {
+    if (vehicle && nameDraft.trim()) onRenameVehicle(vehicle.id, nameDraft)
+    editingName = false
+  }
 </script>
 
 {#if vehicle}
   <div class="flex flex-col gap-3 p-4 text-sm text-slate-200">
     <div class="flex items-center justify-between">
-      <h2 class="text-base font-semibold text-white">{vehicle.name}</h2>
+      {#if editingName}
+        <input
+          class="min-w-0 w-32 rounded border border-sky-500 bg-slate-950 px-1.5 py-0.5 text-base font-semibold text-white outline-none"
+          bind:this={nameInput}
+          bind:value={nameDraft}
+          aria-label="Boat name"
+          onblur={saveRename}
+          onkeydown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+            if (event.key === 'Escape') editingName = false
+          }}
+        />
+      {:else}
+        <button type="button" class="min-w-0 truncate text-left text-base font-semibold text-white hover:text-sky-300" title="Rename boat" onclick={startRename}>
+          {vehicle.name}
+        </button>
+      {/if}
       <div class="flex items-center gap-1.5">
         {#if missionId}
           <button
@@ -80,6 +115,14 @@
         onclick={() => onToggleFollow(vehicle.id)}
       >
         {isFollowing ? 'Following' : 'Follow'}
+      </button>
+      <button
+        type="button"
+        class="flex-1 rounded bg-teal-700 px-3 py-2 text-xs font-medium text-white hover:bg-teal-600"
+        title="Issue an action to this boat"
+        onclick={() => onStartAction(vehicle.id)}
+      >
+        Action
       </button>
       <button
         type="button"

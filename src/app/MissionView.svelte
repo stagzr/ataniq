@@ -41,9 +41,12 @@
     missionStore.destroy()
   })
 
-  function abortMission() {
+  function abortMission(_mission: NonNullable<typeof mission>, outcome: 'return-to-base' | 'stay-idle') {
     if (!mission) return
-    mission.vehicleIds.forEach((vehicleId) => abortVehicleToIdle(vehicleId))
+    mission.vehicleIds.forEach((vehicleId) => {
+      if (outcome === 'return-to-base') vehicleStore.sendCommand(vehicleId, { type: 'return-to-base' })
+      else abortVehicleToIdle(vehicleId)
+    })
     missionStore.removeMission(mission.id)
   }
 

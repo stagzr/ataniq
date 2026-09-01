@@ -12,3 +12,149 @@ body {
   color: #e2e8f0;
   font-family: system-ui, "Segoe UI", Roboto, sans-serif;
 }
+
+.login-water-field {
+  position: absolute;
+  inset: 0;
+  background-color: #071923;
+  background-image:
+    linear-gradient(rgba(45, 212, 191, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45, 212, 191, 0.045) 1px, transparent 1px);
+  background-size: 4rem 4rem;
+}
+
+.login-contact-track {
+  position: absolute;
+  top: 36%;
+  right: -5rem;
+  width: 26rem;
+  height: 1px;
+  border-top: 1px dashed rgba(245, 158, 11, 0.48);
+  transform: rotate(24deg);
+}
+
+.login-contact {
+  position: absolute;
+  top: -6px;
+  left: 40%;
+  width: 12px;
+  height: 12px;
+  background: #f59e0b;
+  opacity: 0.68;
+  transform: rotate(45deg);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.45);
+}
+
+.login-island {
+  position: absolute;
+  display: block;
+  background: #284a4f;
+  border: 1px solid rgba(94, 234, 212, 0.12);
+  opacity: 0.48;
+}
+
+.login-island-one {
+  top: -5rem;
+  left: -6rem;
+  width: 23rem;
+  height: 14rem;
+  clip-path: polygon(0 20%, 13% 8%, 28% 14%, 40% 3%, 55% 15%, 70% 8%, 85% 25%, 100% 21%, 94% 47%, 100% 65%, 78% 72%, 64% 91%, 44% 82%, 27% 100%, 12% 79%, 0 84%);
+}
+
+.login-island-two {
+  right: -5rem;
+  bottom: -4rem;
+  width: 20rem;
+  height: 15rem;
+  clip-path: polygon(5% 34%, 21% 14%, 37% 22%, 50% 4%, 65% 19%, 87% 13%, 96% 35%, 85% 53%, 100% 71%, 73% 79%, 61% 100%, 39% 88%, 19% 94%, 14% 66%, 0 51%);
+}
+
+.login-island-three {
+  top: 57%;
+  left: 7%;
+  width: 8rem;
+  height: 5rem;
+  opacity: 0.32;
+  clip-path: polygon(4% 43%, 26% 14%, 50% 25%, 68% 4%, 94% 29%, 86% 54%, 100% 74%, 70% 88%, 42% 78%, 19% 100%, 0 75%);
+}
+
+.login-vessel {
+  position: absolute;
+  width: 18px;
+  height: 26px;
+  background: #22c55e;
+  clip-path: polygon(50% 0, 100% 100%, 50% 72%, 0 100%);
+  opacity: 0.35;
+}
+
+.login-vessel-one {
+  top: 19%;
+  left: 17%;
+  transform: rotate(118deg);
+}
+
+.login-vessel-two {
+  right: 13%;
+  bottom: 25%;
+  transform: rotate(-68deg);
+}
+
+.login-vessel-three {
+  bottom: 14%;
+  left: 34%;
+  transform: rotate(28deg) scale(0.7);
+}
+
+.login-status {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  z-index: 1;
+  color: rgba(153, 246, 228, 0.58);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.login-status-current {
+  color: rgba(204, 251, 241, 0.78);
+  margin-top: 0.45rem;
+}
+
+.login-status-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.login-status-entry {
+  animation: login-status-entry 2.4s linear forwards;
+}
+
+.login-status-entry span {
+  color: rgba(45, 212, 191, 0.75);
+}
+
+.login-status-ready {
+  animation: none;
+  color: rgba(204, 251, 241, 0.78);
+}
+
+.login-status-dots {
+  display: inline-block;
+  width: 1.5rem;
+  animation: login-status-dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes login-status-dots {
+  0% { clip-path: inset(0 100% 0 0); }
+  100% { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes login-status-entry {
+  0% { opacity: 0; translate: 0 3px; }
+  12% { opacity: 0.58; translate: 0 0; }
+  55% { opacity: 0.3; }
+  100% { opacity: 0; }
+}

@@ -99,8 +99,11 @@
     vehicleStore.sendCommand(vehicleId, { type: 'return-to-base' })
   }
 
-  function abortMission(mission: NonNullable<typeof selectedMission>) {
-    mission.vehicleIds.forEach((vehicleId) => abortVehicleToIdle(vehicleId))
+  function abortMission(mission: NonNullable<typeof selectedMission>, outcome: 'return-to-base' | 'stay-idle') {
+    mission.vehicleIds.forEach((vehicleId) => {
+      if (outcome === 'return-to-base') vehicleStore.sendCommand(vehicleId, { type: 'return-to-base' })
+      else abortVehicleToIdle(vehicleId)
+    })
     missionStore.removeMission(mission.id)
     if (selectedMissionId === mission.id) selectedMissionId = undefined
   }
@@ -109,7 +112,7 @@
     abortVehicleToIdle(vehicleId)
     const remainingIds = mission.vehicleIds.filter((id) => id !== vehicleId)
     if (remainingIds.length) missionStore.updateMission({ ...mission, vehicleIds: remainingIds })
-    else abortMission(mission)
+    else abortMission(mission, 'stay-idle')
   }
 
   function abortCurrentVehicleMission(vehicle: NonNullable<typeof selectedVehicle>) {
@@ -154,6 +157,18 @@
     if (!multiActionMode) resetMultiAction()
   }
 
+  function startVehicleAction(id: string) {
+    selectedVehicleId = undefined
+    selectedContactId = undefined
+    selectedMissionId = undefined
+    multiActionMode = true
+    multiSelectedIds = new Set([id])
+    activeFormationAction = undefined
+    lineStart = undefined
+    circleCenter = undefined
+    formationPointer = undefined
+  }
+
   function resetMultiAction() {
     multiSelectedIds = new Set()
     activeFormationAction = undefined
@@ -173,7 +188,22 @@
     multiSelectedIds = new Set(vehicles.map((vehicle) => vehicle.id))
   }
 
+  function renameMission(missionId: string, name: string) {
+    const mission = missions[missionId]
+    if (mission && name.trim()) missionStore.updateMission({ ...mission, name: name.trim() })
+  }
+
   function selectFormationAction(action: FormationAction) {
+    if (action === 'return-to-base') {
+      const vehicleIds = [...multiSelectedIds]
+      if (!vehicleIds.length) return
+      const missionId = `mission-${Date.now()}`
+      vehicleIds.forEach((vehicleId) => vehicleStore.sendCommand(vehicleId, { type: 'return-to-base' }))
+      missionStore.addMission({ id: missionId, action, vehicleIds, createdAt: Date.now() })
+      multiActionMode = false
+      resetMultiAction()
+      return
+    }
     activeFormationAction = activeFormationAction === action ? undefined : action
     lineStart = undefined
     circleCenter = undefined
@@ -301,6 +331,10 @@
       {multiSelectedIds}
       onToggleMultiSelect={toggleVehicleMultiSelect}
       onSelectAll={selectAllVehicles}
+      onRenameVehicle={vehicleStore.renameVehicle}
+      onRenameMission={renameMission}
+      onToggleMultiAction={toggleMultiActionMode}
+      onStartVehicleAction={startVehicleAction}
     />
   </aside>
 
@@ -316,6 +350,7 @@
       {ringHighlightIds}
       missions={missionList}
       {selectedMissionId}
+      onSelectMission={openMission}
       draftGeometry={
         activeFormationAction === 'circle' && circleCenter
           ? {
@@ -333,21 +368,7 @@
       onUpdateMissionGeometry={updateMissionGeometry}
       onToggleVehicleMultiSelect={toggleVehicleMultiSelect}
       onMapBackgroundClick={handleMapBackgroundClick}
-    >
-      <div
-        slot="toolbar-extra"
-        class="flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 shadow-lg backdrop-blur"
-      >
-        <button
-          type="button"
-          class="rounded px-2 py-1 font-medium {multiActionMode ? 'bg-sky-600 text-white' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'}"
-          title="Select multiple boats (via checkboxes or on the map) and give them a group order: Attack, Inspect, Circle, Line, or Embargo"
-          onclick={toggleMultiActionMode}
-        >
-          Multiaction
-        </button>
-      </div>
-    </MapView>
+    />
   </main>
 
   <aside class="flex flex-col divide-y divide-slate-800 overflow-y-auto border-l border-slate-800">
@@ -386,6 +407,8 @@
           onToggleFollow={toggleFollowVehicle}
           onOpenMission={openMission}
           onAbortCurrentMission={abortCurrentVehicleMission}
+          onRenameVehicle={vehicleStore.renameVehicle}
+          onStartAction={startVehicleAction}
         />
       {/if}
     </section>

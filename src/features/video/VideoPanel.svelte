@@ -74,24 +74,8 @@
 
 {#if vehicles.length > 1}
   <div class="mb-2 flex items-center justify-between gap-2">
-    {#if layout === 'tabs'}
-      <div class="flex flex-wrap gap-1">
-        {#each vehicles as vehicle (vehicle.id)}
-          <button
-            type="button"
-            class="rounded px-2 py-1 text-xs font-medium {activeId === vehicle.id
-              ? 'bg-sky-600 text-white'
-              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}"
-            onclick={() => (activeId = vehicle.id)}
-          >
-            {vehicle.name}
-          </button>
-        {/each}
-      </div>
-    {:else}
-      <span class="text-xs text-slate-500">{vehicles.length} feeds</span>
-    {/if}
-    <div class="flex gap-1">
+    <span class="text-xs text-slate-500">{layout === 'tabs' ? 'Select feed' : `${vehicles.length} feeds`}</span>
+    <div class="flex shrink-0 gap-1">
       <button
         type="button"
         class="rounded px-2 py-1 text-xs font-medium {layout === 'tabs' ? 'bg-slate-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}"
@@ -108,6 +92,21 @@
       </button>
     </div>
   </div>
+  {#if layout === 'tabs'}
+    <div class="mb-2 flex flex-wrap gap-1">
+      {#each vehicles as vehicle (vehicle.id)}
+        <button
+          type="button"
+          class="rounded px-2 py-1 text-xs font-medium {activeId === vehicle.id
+            ? 'bg-sky-600 text-white'
+            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}"
+          onclick={() => (activeId = vehicle.id)}
+        >
+          {vehicle.name}
+        </button>
+      {/each}
+    </div>
+  {/if}
 {/if}
 
 {#if layout === 'grid' && vehicles.length > 1}

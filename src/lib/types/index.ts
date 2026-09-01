@@ -68,6 +68,7 @@ export type VehicleCommand =
 export type FormationActionType =
   | "attack"
   | "inspect"
+  | "return-to-base"
   | "circle"
   | "line"
   | "embargo";
@@ -78,6 +79,7 @@ export type FormationGeometry =
 
 export interface FormationMission {
   id: string;
+  name?: string;
   action: FormationActionType;
   vehicleIds: string[];
   contactId?: string;

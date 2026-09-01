@@ -1,5 +1,5 @@
 <script context="module" lang="ts">
-  export type FormationAction = 'attack' | 'inspect' | 'circle' | 'line' | 'embargo'
+  export type FormationAction = 'attack' | 'inspect' | 'return-to-base' | 'circle' | 'line' | 'embargo'
 </script>
 
 <script lang="ts">
@@ -19,6 +19,12 @@
       label: 'Inspect',
       hint: 'Click an unidentified contact to orbit at standoff range',
       description: 'Send the selected boats to orbit an unidentified contact at a safe distance instead of closing in. Click a contact on the map after selecting this.',
+    },
+    {
+      id: 'return-to-base',
+      label: 'Return to base',
+      hint: 'The selected boats are returning to base',
+      description: 'Immediately send every selected boat back to base.',
     },
     {
       id: 'circle',
@@ -54,7 +60,7 @@
       <button
         type="button"
         class="rounded px-3 py-2 text-left text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-40
-          {activeAction === action.id ? 'bg-sky-600 hover:bg-sky-500' : 'bg-slate-700 hover:bg-slate-600'}"
+          {activeAction === action.id ? 'bg-teal-700 hover:bg-teal-600' : 'bg-slate-700 hover:bg-slate-600'}"
         disabled={selectedCount === 0}
         title={action.description}
         onclick={() => onSelectAction(action.id)}
@@ -67,6 +73,6 @@
   {#if selectedCount === 0}
     <p class="text-xs text-slate-500">Check boats in the Fleet list or click them on the map to select.</p>
   {:else if activeAction}
-    <p class="text-xs text-sky-300">{ACTIONS.find((a) => a.id === activeAction)?.hint}</p>
+    <p class="text-xs text-teal-300">{ACTIONS.find((a) => a.id === activeAction)?.hint}</p>
   {/if}
 </div>

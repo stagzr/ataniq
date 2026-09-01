@@ -20,6 +20,7 @@
   export let missions: FormationMission[] = []
   export let selectedMissionId: string | undefined = undefined
   export let draftGeometry: FormationGeometry | undefined = undefined
+  export let onSelectMission: (id: string) => void = () => {}
   export let onUpdateMissionGeometry: (missionId: string, geometry: FormationGeometry) => void = () => {}
   export let onMapPointerMove: (point: [number, number]) => void = () => {}
   export let onToggleVehicleMultiSelect: (id: string) => void = () => {}
@@ -29,39 +30,27 @@
   let map: maplibregl.Map
   let animator = new VehicleAnimator()
   let rafId: number
-  let flashTimer: ReturnType<typeof setInterval>
   let unsubscribeVehicles: () => void
   let unsubscribeContacts: () => void
   let styleLoaded = false
+  let layersInitialized = false
   let showNames = true
   let latestContacts: Contact[] = []
   let latestVehicles = new Map<string, Vehicle>()
   let vehiclePopup: maplibregl.Popup | undefined
   let interceptMarkers: InterceptMarker[] = []
-  let fallbackTiles: Array<{ key: string; src: string; left: number; top: number }> = []
-  let vehicleTrailLines: Array<{ id: string; status: Vehicle['status']; points: string }> = []
-  let vehicleDestinationLines: Array<{ id: string; status: Vehicle['status']; x1: number; y1: number; x2: number; y2: number; selected: boolean }> = []
-  let contactDestinationLines: Array<{ id: string; status: Contact['status']; x1: number; y1: number; x2: number; y2: number; selected: boolean }> = []
-  let missionLineDrawings: Array<{ id: string; x1: number; y1: number; x2: number; y2: number; selected: boolean; embargo: boolean; draft: boolean }> = []
-  let missionLineAnchors: Array<{ id: string; x: number; y: number }> = []
-  let missionCircleDrawings: Array<{ id: string; x: number; y: number; radiusX: number; radiusY: number; selected: boolean; draft: boolean }> = []
-  let vehicleMarkers: Array<{ id: string; name: string; status: Vehicle['status']; x: number; y: number; heading: number }> = []
-  let contactMarkers: Array<{ id: string; label: string; status: Contact['status']; x: number; y: number }> = []
-  let pulseRings: Array<{ id: string; x: number; y: number; size: number; opacity: number }> = []
-  let baseMarker: { x: number; y: number } | undefined
   let vehiclePulses: Array<{ id: string; vehicleId: string; startedAt: number }> = []
   let geometryOverrides = new Map<string, FormationGeometry>()
   let circleDrag: { missionId: string; geometry: Extract<FormationGeometry, { type: 'circle' }>; start: [number, number]; mode: 'move' | 'resize' } | undefined
   let lastPulseSelectedVehicleId: string | undefined = undefined
   let lastPulseFollowedVehicleId: string | undefined = undefined
-  let flashOn = true
 
   $: if (styleLoaded) setNamesVisible(showNames)
   $: if (styleLoaded) setSelectedVehicle(selectedVehicleId)
   $: if (styleLoaded) setSelectedContact(selectedContactId)
   $: if (styleLoaded) triggerSelectedVehiclePulse(selectedVehicleId)
   $: if (styleLoaded) triggerFollowedVehiclePulse(followedTarget)
-  $: if (styleLoaded) refreshMissionSources()
+  $: if (styleLoaded) refreshMissionSources(missions, selectedMissionId, draftGeometry)
 
   function setNamesVisible(show: boolean): void {
     map.setLayoutProperty('vehicles-layer', 'text-field', show ? ['get', 'name'] : '')
@@ -125,27 +114,9 @@
 
   const BASEMAP_STYLE: maplibregl.StyleSpecification = {
     version: 8,
-    sources: {
-      'osm-standard': {
-        type: 'raster',
-        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-        tileSize: 256,
-        attribution: '© OpenStreetMap contributors',
-      },
-    },
-    layers: [{ id: 'osm-standard', type: 'raster', source: 'osm-standard' }],
+    sources: {},
+    layers: [{ id: 'water', type: 'background', paint: { 'background-color': '#082f49' } }],
   }
-  const FALLBACK_TILE_ZOOM = 10
-  const FALLBACK_TILE_SIZE = 256
-
-  function getVehicleColor(status: Vehicle['status']): string {
-    return STATUS_COLORS[status]
-  }
-
-  function getContactColor(status: Contact['status']): string {
-    return CONTACT_COLORS[status]
-  }
-
   const ORDER_LABEL: Record<Vehicle['order']['type'], string> = {
     patrol: 'On patrol',
     'return-to-base': 'Returning to base',
@@ -409,13 +380,20 @@
     })
   }
 
-  function toMissionFeatureCollection() {
+  function toMissionFeatureCollection(
+    currentMissions = missions,
+    currentSelectedMissionId = selectedMissionId,
+    currentDraftGeometry = draftGeometry,
+  ) {
     return {
       type: 'FeatureCollection' as const,
-      features: missions.flatMap<any>((mission) => {
-        const geometry = getMissionGeometry(mission)
+      features: [
+        ...currentMissions.map((mission) => ({ id: mission.id, geometry: getMissionGeometry(mission), selected: mission.id === currentSelectedMissionId, action: mission.action, draft: false })),
+        ...(currentDraftGeometry ? [{ id: 'draft', geometry: currentDraftGeometry, selected: true, action: 'draft', draft: true }] : []),
+      ].flatMap<any>((mission) => {
+        const geometry = mission.geometry
         if (!geometry) return []
-        const properties = { id: mission.id, selected: mission.id === selectedMissionId, action: mission.action }
+        const properties = { id: mission.id, selected: mission.selected, action: mission.action, draft: mission.draft }
         if (geometry.type === 'line') {
           return [{ type: 'Feature' as const, geometry: { type: 'LineString' as const, coordinates: [geometry.start, geometry.end] }, properties }]
         }
@@ -424,8 +402,16 @@
     }
   }
 
-  function toMissionHandleFeatureCollection() {
-    const mission = missions.find((candidate) => candidate.id === selectedMissionId)
+  function toMissionDraftAnchorFeatureCollection(currentDraftGeometry = draftGeometry) {
+    if (!currentDraftGeometry || currentDraftGeometry.type !== 'line') return { type: 'FeatureCollection' as const, features: [] }
+    return {
+      type: 'FeatureCollection' as const,
+      features: [{ type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: currentDraftGeometry.start }, properties: {} }],
+    }
+  }
+
+  function toMissionHandleFeatureCollection(currentMissions = missions, currentSelectedMissionId = selectedMissionId) {
+    const mission = currentMissions.find((candidate) => candidate.id === currentSelectedMissionId)
     const geometry = mission && getMissionGeometry(mission)
     if (!mission || !geometry || geometry.type !== 'circle') return { type: 'FeatureCollection' as const, features: [] }
     return {
@@ -437,104 +423,23 @@
     }
   }
 
-  function refreshMissionSources() {
+  function refreshMissionSources(
+    currentMissions = missions,
+    currentSelectedMissionId = selectedMissionId,
+    currentDraftGeometry = draftGeometry,
+  ) {
     const areaSource = map?.getSource('mission-areas') as maplibregl.GeoJSONSource | undefined
     const handleSource = map?.getSource('mission-handles') as maplibregl.GeoJSONSource | undefined
-    areaSource?.setData(toMissionFeatureCollection() as any)
-    handleSource?.setData(toMissionHandleFeatureCollection() as any)
+    const anchorSource = map?.getSource('mission-draft-anchor') as maplibregl.GeoJSONSource | undefined
+    areaSource?.setData(toMissionFeatureCollection(currentMissions, currentSelectedMissionId, currentDraftGeometry) as any)
+    handleSource?.setData(toMissionHandleFeatureCollection(currentMissions, currentSelectedMissionId) as any)
+    anchorSource?.setData(toMissionDraftAnchorFeatureCollection(currentDraftGeometry) as any)
   }
 
-  function lngLatToWorldPoint(lng: number, lat: number, zoom: number) {
-    const scale = FALLBACK_TILE_SIZE * 2 ** zoom
-    const sin = Math.sin((lat * Math.PI) / 180)
-    return {
-      x: ((lng + 180) / 360) * scale,
-      y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale,
-    }
-  }
-
-  function updateHtmlOverlay(states: ReturnType<VehicleAnimator['getInterpolatedState']>, now: number) {
-    if (!mapContainer || !map) return
-    const rect = mapContainer.getBoundingClientRect()
-    const center = map.getCenter()
-    const centerWorld = lngLatToWorldPoint(center.lng, center.lat, FALLBACK_TILE_ZOOM)
-    const startX = Math.floor((centerWorld.x - rect.width / 2) / FALLBACK_TILE_SIZE) - 1
-    const endX = Math.floor((centerWorld.x + rect.width / 2) / FALLBACK_TILE_SIZE) + 1
-    const startY = Math.floor((centerWorld.y - rect.height / 2) / FALLBACK_TILE_SIZE) - 1
-    const endY = Math.floor((centerWorld.y + rect.height / 2) / FALLBACK_TILE_SIZE) + 1
-    const tiles: typeof fallbackTiles = []
-
-    for (let x = startX; x <= endX; x++) {
-      for (let y = startY; y <= endY; y++) {
-        tiles.push({
-          key: `${FALLBACK_TILE_ZOOM}-${x}-${y}`,
-          src: `https://tile.openstreetmap.org/${FALLBACK_TILE_ZOOM}/${x}/${y}.png`,
-          left: x * FALLBACK_TILE_SIZE - centerWorld.x + rect.width / 2,
-          top: y * FALLBACK_TILE_SIZE - centerWorld.y + rect.height / 2,
-        })
-      }
-    }
-
-    fallbackTiles = tiles
-    vehicleTrailLines = states
-      .filter((state) => state.trail.length > 1)
-      .map((state) => ({
-        id: state.id,
-        status: state.status,
-        points: state.trail
-          .map((point) => map.project(point))
-          .map((point) => `${point.x},${point.y}`)
-          .join(' '),
-      }))
-    vehicleDestinationLines = states.map((state) => {
-      const start = map.project([state.lng, state.lat])
-      const end = map.project(state.destination)
-      return { id: state.id, status: state.status, x1: start.x, y1: start.y, x2: end.x, y2: end.y, selected: selectedVehicleId === state.id }
-    })
-    contactDestinationLines = latestContacts.map((contact) => {
-      const start = map.project(contact.position)
-      const end = map.project(contact.destination)
-      return { id: contact.id, status: contact.status, x1: start.x, y1: start.y, x2: end.x, y2: end.y, selected: selectedContactId === contact.id }
-    })
-    const visibleMissionAreas = [
-      ...missions.map((mission) => ({ id: mission.id, geometry: getMissionGeometry(mission), selected: mission.id === selectedMissionId, embargo: mission.action === 'embargo', draft: false })),
-      ...(draftGeometry ? [{ id: 'draft', geometry: draftGeometry, selected: true, embargo: false, draft: true }] : []),
-    ]
-    missionLineDrawings = visibleMissionAreas.flatMap((area) => {
-      if (!area.geometry || area.geometry.type !== 'line') return []
-      const start = map.project(area.geometry.start)
-      const end = map.project(area.geometry.end)
-      return [{ id: area.id, x1: start.x, y1: start.y, x2: end.x, y2: end.y, selected: area.selected, embargo: area.embargo, draft: area.draft }]
-    })
-    missionLineAnchors = missionLineDrawings
-      .filter((line) => line.draft)
-      .map((line) => ({ id: line.id, x: line.x1, y: line.y1 }))
-    missionCircleDrawings = visibleMissionAreas.flatMap((area) => {
-      if (!area.geometry || area.geometry.type !== 'circle') return []
-      const center = map.project(area.geometry.center)
-      const east = map.project([area.geometry.center[0] + area.geometry.radiusDeg, area.geometry.center[1]])
-      const north = map.project([area.geometry.center[0], area.geometry.center[1] + area.geometry.radiusDeg * 0.6])
-      return [{ id: area.id, x: center.x, y: center.y, radiusX: Math.abs(east.x - center.x), radiusY: Math.abs(north.y - center.y), selected: area.selected, draft: area.draft }]
-    })
-    vehicleMarkers = states.map((state) => {
-      const point = map.project([state.lng, state.lat])
-      return { id: state.id, name: state.name, status: state.status, x: point.x, y: point.y, heading: state.heading }
-    })
-    contactMarkers = latestContacts.map((contact) => {
-      const point = map.project(contact.position)
-      return { id: contact.id, label: contact.label, status: contact.status, x: point.x, y: point.y }
-    })
-    pulseRings = vehiclePulses
-      .map((pulse) => {
-        const state = states.find((candidate) => candidate.id === pulse.vehicleId)
-        if (!state) return undefined
-        const point = map.project([state.lng, state.lat])
-        const progress = Math.min(1, (now - pulse.startedAt) / 2000)
-        return { id: pulse.id, x: point.x, y: point.y, size: 24 + progress * 68, opacity: 0.85 - progress * 0.85 }
-      })
-      .filter((pulse): pulse is NonNullable<typeof pulse> => Boolean(pulse))
-    const basePoint = map.project(getBaseLocation())
-    baseMarker = { x: basePoint.x, y: basePoint.y }
+  function selectMissionFromFeature(e: maplibregl.MapLayerMouseEvent): void {
+    const id = e.features?.[0]?.properties?.id
+    const isDraft = e.features?.[0]?.properties?.draft
+    if (typeof id === 'string' && isDraft !== true && isDraft !== 'true') onSelectMission(id)
   }
 
   function renderFrame(now: number) {
@@ -550,8 +455,6 @@
     destinationsSource?.setData(toDestinationFeatureCollection(states) as any)
     multiSelectSource?.setData(toMultiSelectFeatureCollection(states) as any)
     pulseSource?.setData(toVehiclePulseFeatureCollection(states, now) as any)
-    updateHtmlOverlay(states, now)
-
     if (followedTarget) {
       let position: [number, number] | undefined
       if (followedTarget.type === 'vehicle') {
@@ -575,11 +478,21 @@
     })
     vehiclePopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 18, className: 'vehicle-hover-popup' })
 
-    map.on('load', () => {
+    const initializeMapLayers = () => {
+      if (layersInitialized) return
+      layersInitialized = true
       map.addImage('vehicle-arrow', buildArrowIcon(32), { sdf: true })
       map.addImage('contact-diamond', buildDiamondIcon(28), { sdf: true })
       map.addImage('base-icon', buildBaseIcon(28), { sdf: true })
       map.addImage('intercept-cross', buildCrossIcon(20), { sdf: true })
+
+      map.addSource('osm-standard', {
+        type: 'raster',
+        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        attribution: '© OpenStreetMap contributors',
+      })
+      map.addLayer({ id: 'osm-standard', type: 'raster', source: 'osm-standard' })
 
       map.addSource('trails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({
@@ -675,7 +588,19 @@
           'line-color': '#38bdf8',
           'line-width': ['case', ['get', 'selected'], 3, 2],
           'line-opacity': ['case', ['get', 'selected'], 1, 0.65],
-          'line-dasharray': ['case', ['==', ['get', 'action'], 'embargo'], ['literal', [2, 1]], ['literal', [1, 0]]],
+          'line-dasharray': ['case', ['any', ['==', ['get', 'action'], 'embargo'], ['==', ['get', 'draft'], true]], ['literal', [2, 1]], ['literal', [1, 0]]],
+        },
+      })
+      map.addSource('mission-draft-anchor', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: 'mission-draft-anchor-layer',
+        type: 'circle',
+        source: 'mission-draft-anchor',
+        paint: {
+          'circle-radius': 7,
+          'circle-color': '#0f172a',
+          'circle-stroke-color': '#38bdf8',
+          'circle-stroke-width': 3,
         },
       })
       map.addSource('mission-handles', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
@@ -733,11 +658,11 @@
             'critical', STATUS_COLORS.critical,
             STATUS_COLORS.offline,
           ],
-          'icon-opacity': 0,
+          'icon-opacity': 1,
           'text-color': '#e2e8f0',
           'text-halo-color': '#0f172a',
           'text-halo-width': 1.2,
-          'text-opacity': 0,
+          'text-opacity': 1,
         },
       })
 
@@ -766,11 +691,11 @@
             'identified', CONTACT_COLORS.identified,
             CONTACT_COLORS.neutralized,
           ],
-          'icon-opacity': 0,
+          'icon-opacity': 1,
           'text-color': '#fcd34d',
           'text-halo-color': '#0f172a',
           'text-halo-width': 1.2,
-          'text-opacity': 0,
+          'text-opacity': 1,
         },
       })
 
@@ -807,6 +732,8 @@
         const id = e.features?.[0]?.properties?.id
         if (id) onSelectContact(id)
       })
+      map.on('click', 'mission-areas-fill', selectMissionFromFeature)
+      map.on('click', 'mission-areas-outline', selectMissionFromFeature)
       map.on('mouseenter', 'vehicles-layer', (e: maplibregl.MapLayerMouseEvent) => {
         map.getCanvas().style.cursor = 'pointer'
         showVehiclePopup(e)
@@ -865,7 +792,8 @@
       // background clicks (not on a vehicle/contact) are used for formation placement
       map.on('click', (e: maplibregl.MapMouseEvent) => {
         const hits = map.queryRenderedFeatures(e.point, { layers: ['vehicles-layer', 'contacts-layer', 'mission-areas-fill', 'mission-areas-outline', 'mission-handles-layer'] })
-        if (hits.length === 0) onMapBackgroundClick([e.lngLat.lng, e.lngLat.lat])
+        const nonDraftHits = hits.filter((feature) => feature.properties?.draft !== true && feature.properties?.draft !== 'true')
+        if (nonDraftHits.length === 0) onMapBackgroundClick([e.lngLat.lng, e.lngLat.lat])
       })
 
       // stop auto-centering as soon as the operator manually pans the map
@@ -876,7 +804,10 @@
       styleLoaded = true
       refreshMissionSources()
       rafId = requestAnimationFrame(renderFrame)
-    })
+    }
+
+    if (map.isStyleLoaded()) initializeMapLayers()
+    else map.once('styledata', initializeMapLayers)
 
     unsubscribeVehicles = vehicleStore.subscribe((vehicles) => {
       latestVehicles = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
@@ -893,18 +824,10 @@
       if (styleLoaded) refreshInterceptMarkers()
     })
 
-    flashTimer = setInterval(() => {
-      flashOn = !flashOn
-      if (!styleLoaded) return
-      map.setPaintProperty('vehicles-layer', 'icon-opacity', [
-        'case', ['==', ['get', 'onMission'], true], flashOn ? 0 : 0, 0,
-      ])
-    }, 450)
   })
 
   onDestroy(() => {
     cancelAnimationFrame(rafId)
-    clearInterval(flashTimer)
     unsubscribeVehicles?.()
     unsubscribeContacts?.()
     vehiclePopup?.remove()
@@ -922,132 +845,5 @@
     </div>
     <slot name="toolbar-extra" />
   </div>
-  <div class="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-slate-200">
-    {#each fallbackTiles as tile (tile.key)}
-      <img
-        alt=""
-        class="absolute h-64 w-64 select-none"
-        draggable="false"
-        src={tile.src}
-        style="left: {tile.left}px; top: {tile.top}px;"
-      />
-    {/each}
-  </div>
   <div bind:this={mapContainer} class="absolute inset-0 z-0 h-full w-full"></div>
-  <svg class="pointer-events-none absolute inset-0 z-1 h-full w-full overflow-hidden">
-    {#each missionCircleDrawings as circle (circle.id)}
-      <ellipse
-        cx={circle.x}
-        cy={circle.y}
-        rx={circle.radiusX}
-        ry={circle.radiusY}
-        fill="#38bdf8"
-        fill-opacity={circle.selected ? 0.18 : 0.08}
-        stroke="#38bdf8"
-        stroke-width={circle.selected ? 3 : 2}
-        stroke-opacity={circle.draft ? 0.8 : 1}
-        stroke-dasharray={circle.draft ? '7 5' : undefined}
-      />
-    {/each}
-    {#each missionLineDrawings as line (line.id)}
-      <line
-        x1={line.x1}
-        y1={line.y1}
-        x2={line.x2}
-        y2={line.y2}
-        stroke="#38bdf8"
-        stroke-width={line.selected ? 4 : 3}
-        stroke-opacity={line.draft ? 0.8 : 1}
-        stroke-dasharray={line.embargo || line.draft ? '8 5' : undefined}
-      />
-    {/each}
-    {#each missionLineAnchors as anchor (anchor.id)}
-      <circle cx={anchor.x} cy={anchor.y} r="7" fill="#0f172a" stroke="#38bdf8" stroke-width="3" />
-    {/each}
-    {#each vehicleTrailLines as line (line.id)}
-      <polyline points={line.points} fill="none" stroke={getVehicleColor(line.status)} stroke-width="2" opacity="0.42" />
-    {/each}
-    {#each vehicleDestinationLines as line (line.id)}
-      <line
-        x1={line.x1}
-        y1={line.y1}
-        x2={line.x2}
-        y2={line.y2}
-        stroke={getVehicleColor(line.status)}
-        stroke-width={line.selected ? 3 : 1.25}
-        stroke-dasharray="5 5"
-        opacity={line.selected ? 0.9 : 0.45}
-      />
-    {/each}
-    {#each contactDestinationLines as line (line.id)}
-      <line
-        x1={line.x1}
-        y1={line.y1}
-        x2={line.x2}
-        y2={line.y2}
-        stroke={getContactColor(line.status)}
-        stroke-width={line.selected ? 3 : 1.5}
-        stroke-dasharray="2 4"
-        opacity={line.selected ? 0.9 : 0.6}
-      />
-    {/each}
-  </svg>
-  <div class="pointer-events-none absolute inset-0 z-4 overflow-hidden">
-    {#each pulseRings as pulse (pulse.id)}
-      <span
-        class="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-sky-400"
-        style="left: {pulse.x}px; top: {pulse.y}px; width: {pulse.size}px; height: {pulse.size}px; opacity: {pulse.opacity};"
-      ></span>
-    {/each}
-    {#if baseMarker}
-      <span class="absolute -translate-x-1/2 -translate-y-1/2 text-lg font-black text-sky-500 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" style="left: {baseMarker.x}px; top: {baseMarker.y}px;">⌂</span>
-    {/if}
-  </div>
-  <div class="pointer-events-none absolute inset-0 z-5 overflow-hidden">
-    {#each vehicleMarkers as marker (marker.id)}
-      <button
-        type="button"
-        class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
-        style="left: {marker.x}px; top: {marker.y}px;"
-        onclick={() => (multiSelectMode ? onToggleVehicleMultiSelect(marker.id) : onSelectVehicle(marker.id))}
-      >
-        <span
-          class="mx-auto block h-0 w-0 border-x-8 border-b-18 border-x-transparent {marker.status === 'critical'
-            ? 'border-b-red-500'
-            : marker.status === 'warning'
-              ? 'border-b-amber-500'
-              : marker.status === 'offline'
-                ? 'border-b-slate-600'
-                : marker.status === 'idle'
-                  ? 'border-b-slate-400'
-                  : 'border-b-emerald-500'}"
-          style="transform: rotate({marker.heading}deg);"
-        ></span>
-        {#if showNames}
-          <span>{marker.name}</span>
-        {/if}
-      </button>
-    {/each}
-    {#each contactMarkers as marker (marker.id)}
-      <button
-        type="button"
-        class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 text-[11px] font-bold text-amber-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
-        style="left: {marker.x}px; top: {marker.y}px;"
-        onclick={() => onSelectContact(marker.id)}
-      >
-        <span
-          class="mx-auto block h-4 w-4 rotate-45 {marker.status === 'neutralized'
-            ? 'bg-slate-600'
-            : marker.status === 'identified'
-              ? 'bg-blue-400'
-              : marker.status === 'inspecting'
-                ? 'bg-sky-400'
-                : 'bg-amber-500'}"
-        ></span>
-        {#if showNames}
-          <span>{marker.label}</span>
-        {/if}
-      </button>
-    {/each}
-  </div>
 </div>
