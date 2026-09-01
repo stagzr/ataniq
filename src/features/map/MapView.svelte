@@ -589,11 +589,23 @@
         id: 'mission-areas-outline',
         type: 'line',
         source: 'mission-areas',
+        filter: ['all', ['!=', ['get', 'action'], 'embargo'], ['!=', ['get', 'draft'], true]],
         paint: {
           'line-color': '#38bdf8',
           'line-width': ['case', ['get', 'selected'], 3, 2],
           'line-opacity': ['case', ['get', 'selected'], 1, 0.65],
-          'line-dasharray': ['case', ['any', ['==', ['get', 'action'], 'embargo'], ['==', ['get', 'draft'], true]], ['literal', [2, 1]], ['literal', [1, 0]]],
+        },
+      })
+      map.addLayer({
+        id: 'mission-areas-dashed-outline',
+        type: 'line',
+        source: 'mission-areas',
+        filter: ['any', ['==', ['get', 'action'], 'embargo'], ['==', ['get', 'draft'], true]],
+        paint: {
+          'line-color': '#38bdf8',
+          'line-width': ['case', ['get', 'selected'], 3, 2],
+          'line-opacity': ['case', ['get', 'selected'], 1, 0.65],
+          'line-dasharray': [2, 1],
         },
       })
       map.addSource('mission-draft-anchor', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
@@ -739,6 +751,7 @@
       })
       map.on('click', 'mission-areas-fill', selectMissionFromFeature)
       map.on('click', 'mission-areas-outline', selectMissionFromFeature)
+      map.on('click', 'mission-areas-dashed-outline', selectMissionFromFeature)
       map.on('mouseenter', 'vehicles-layer', (e: maplibregl.MapLayerMouseEvent) => {
         map.getCanvas().style.cursor = 'pointer'
         showVehiclePopup(e)
@@ -796,7 +809,7 @@
 
       // background clicks (not on a vehicle/contact) are used for formation placement
       map.on('click', (e: maplibregl.MapMouseEvent) => {
-        const hits = map.queryRenderedFeatures(e.point, { layers: ['vehicles-layer', 'contacts-layer', 'mission-areas-fill', 'mission-areas-outline', 'mission-handles-layer'] })
+        const hits = map.queryRenderedFeatures(e.point, { layers: ['vehicles-layer', 'contacts-layer', 'mission-areas-fill', 'mission-areas-outline', 'mission-areas-dashed-outline', 'mission-handles-layer'] })
         const nonDraftHits = hits.filter((feature) => feature.properties?.draft !== true && feature.properties?.draft !== 'true')
         if (nonDraftHits.length === 0) onMapBackgroundClick([e.lngLat.lng, e.lngLat.lat])
       })
