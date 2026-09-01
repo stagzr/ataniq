@@ -50,9 +50,10 @@
     missionStore.removeMission(mission.id)
   }
 
-  function abortVehicleMission(_mission: NonNullable<typeof mission>, vehicleId: string) {
+  function abortVehicleMission(_mission: NonNullable<typeof mission>, vehicleId: string, outcome: 'return-to-base' | 'stay-idle') {
     if (!mission) return
-    abortVehicleToIdle(vehicleId)
+    if (outcome === 'return-to-base') vehicleStore.sendCommand(vehicleId, { type: 'return-to-base' })
+    else abortVehicleToIdle(vehicleId)
     const remainingIds = mission.vehicleIds.filter((id) => id !== vehicleId)
     if (remainingIds.length) missionStore.updateMission({ ...mission, vehicleIds: remainingIds })
     else missionStore.removeMission(mission.id)

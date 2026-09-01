@@ -144,6 +144,8 @@ export class MockTelemetrySource implements TelemetrySource {
                 type: "orbit-contact",
                 contactId: command.contactId,
                 radiusDeg: command.radiusDeg,
+                phase: "transit",
+                entryAngleDeg: command.entryAngleDeg,
                 missionId: command.missionId,
               }
             : command.type === "hold-position"
@@ -344,14 +346,59 @@ export class MockTelemetrySource implements TelemetrySource {
       return { ...v, battery, connectivity, order: { type: "patrol" } };
     }
 
-    const angle = (this.orbitAngles.get(v.id) ?? 0) + ORBIT_ANGULAR_SPEED_DEG;
+    const entryAngleDeg = order.entryAngleDeg ?? 0;
+    const entryPoint = circlePosition(
+      contact.position,
+      order.radiusDeg,
+      entryAngleDeg,
+    );
+    const distanceToEntry = Math.hypot(
+      entryPoint[0] - v.position[0],
+      entryPoint[1] - v.position[1],
+    );
+
+    if (order.phase === "transit" && distanceToEntry >= HOLD_ARRIVAL_DEG) {
+      const heading = bearingTo(v.position, entryPoint);
+      const distance = degPerTick(HOLD_SPEED_KNOTS);
+      const radians = (heading * Math.PI) / 180;
+      const position: [number, number] = [
+        v.position[0] + Math.sin(radians) * distance,
+        v.position[1] + Math.cos(radians) * distance,
+      ];
+      return {
+        ...v,
+        heading,
+        speed: HOLD_SPEED_KNOTS,
+        position,
+        destination: entryPoint,
+        battery,
+        connectivity,
+        status: computeStatus(v.status, battery, connectivity),
+        lastUpdate: Date.now(),
+        order,
+      };
+    }
+
+    const orbitOrder =
+      order.phase === "orbiting"
+        ? order
+        : { ...order, phase: "orbiting" as const };
+    this.orders.set(v.id, orbitOrder);
+    if (order.phase !== "orbiting") this.orbitAngles.set(v.id, entryAngleDeg);
+
+    const angle =
+      (this.orbitAngles.get(v.id) ?? entryAngleDeg) + ORBIT_ANGULAR_SPEED_DEG;
     this.orbitAngles.set(v.id, angle % 360);
 
-    const position = circlePosition(contact.position, order.radiusDeg, angle);
+    const position = circlePosition(
+      contact.position,
+      orbitOrder.radiusDeg,
+      angle,
+    );
     const heading = bearingTo(v.position, position);
     const destination = circlePosition(
       contact.position,
-      order.radiusDeg,
+      orbitOrder.radiusDeg,
       angle + ORBIT_ANGULAR_SPEED_DEG * 3,
     );
 
@@ -365,7 +412,7 @@ export class MockTelemetrySource implements TelemetrySource {
       connectivity,
       status: computeStatus(v.status, battery, connectivity),
       lastUpdate: Date.now(),
-      order,
+      order: orbitOrder,
     };
   }
 

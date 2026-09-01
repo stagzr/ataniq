@@ -34,6 +34,8 @@ export type VehicleOrder =
       type: "orbit-contact";
       contactId: string;
       radiusDeg: number;
+      phase?: "transit" | "orbiting";
+      entryAngleDeg?: number;
       missionId?: string;
     }
   | {
@@ -56,6 +58,7 @@ export type VehicleCommand =
       type: "orbit-contact";
       contactId: string;
       radiusDeg: number;
+      entryAngleDeg?: number;
       missionId?: string;
     }
   | {

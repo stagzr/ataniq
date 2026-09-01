@@ -5,9 +5,9 @@
   export let vehicles: Vehicle[] = []
   export let contact: Contact | undefined = undefined
   export let onAbortMission: (mission: FormationMission, outcome: 'return-to-base' | 'stay-idle') => void = () => {}
-  export let onAbortVehicle: (mission: FormationMission, vehicleId: string) => void = () => {}
+  export let onAbortVehicle: (mission: FormationMission, vehicleId: string, outcome: 'return-to-base' | 'stay-idle') => void = () => {}
 
-  let showAbortDialog = false
+  let abortTarget: 'mission' | string | undefined = undefined
 
   const TITLE: Record<FormationMission['action'], string> = {
     attack: 'Attack mission',
@@ -31,6 +31,14 @@
             ? `${vehicles.length} boat${vehicles.length === 1 ? '' : 's'} holding an even line formation.`
             : `${vehicles.length} boat${vehicles.length === 1 ? '' : 's'} holding an embargo line, and will break off to inspect any contact that comes close.`
     : ''
+
+  function confirmAbort(outcome: 'return-to-base' | 'stay-idle') {
+    if (!mission || !abortTarget) return
+    const target = abortTarget
+    abortTarget = undefined
+    if (target === 'mission') onAbortMission(mission, outcome)
+    else onAbortVehicle(mission, target, outcome)
+  }
 </script>
 
 {#if mission}
@@ -42,7 +50,7 @@
           type="button"
           class="rounded bg-red-950/80 px-2 py-1 text-xs font-medium text-red-200 hover:bg-red-900"
           title="Abort this mission"
-          onclick={() => (showAbortDialog = true)}
+          onclick={() => (abortTarget = 'mission')}
         >
           Abort
         </button>
@@ -69,7 +77,7 @@
               type="button"
               class="rounded bg-slate-700 px-2 py-1 text-[10px] font-medium text-slate-200 hover:bg-slate-600"
               title="Abort current mission for this drone"
-              onclick={() => onAbortVehicle(mission!, vehicle.id)}
+              onclick={() => (abortTarget = vehicle.id)}
             >
               Abort drone
             </button>
@@ -81,37 +89,30 @@
     </div>
   </div>
 
-  {#if showAbortDialog}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4">
-      <dialog open class="m-0 w-full max-w-sm rounded border border-slate-700 bg-slate-900 p-4 text-slate-200 shadow-2xl" aria-labelledby="abort-mission-title">
-        <h3 id="abort-mission-title" class="text-sm font-semibold text-white">Abort mission?</h3>
-        <p class="mt-2 text-xs leading-5 text-slate-400">Choose what the {vehicles.length} assigned boat{vehicles.length === 1 ? '' : 's'} should do after this mission is removed.</p>
+  {#if abortTarget}
+    <div class="fixed inset-0 z-50 bg-slate-950/75"></div>
+    <dialog open class="fixed left-1/2 top-1/2 z-[51] m-0 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded border border-slate-700 bg-slate-900 p-4 text-slate-200 shadow-2xl" aria-labelledby="abort-mission-title">
+        <h3 id="abort-mission-title" class="text-sm font-semibold text-white">Abort {abortTarget === 'mission' ? 'mission' : 'drone'}?</h3>
+        <p class="mt-2 text-xs leading-5 text-slate-400">Choose what {abortTarget === 'mission' ? `the ${vehicles.length} assigned boat${vehicles.length === 1 ? '' : 's'}` : vehicles.find((vehicle) => vehicle.id === abortTarget)?.name ?? 'this boat'} should do after {abortTarget === 'mission' ? 'this mission is removed' : 'leaving this mission'}.</p>
         <div class="mt-4 flex flex-col gap-2">
           <button
             type="button"
             class="rounded bg-red-700 px-3 py-2 text-left text-xs font-medium text-white hover:bg-red-600"
-            onclick={() => {
-              onAbortMission(mission!, 'return-to-base')
-              showAbortDialog = false
-            }}
+            onclick={() => confirmAbort('return-to-base')}
           >
             Abort and return to base
           </button>
           <button
             type="button"
             class="rounded bg-slate-700 px-3 py-2 text-left text-xs font-medium text-white hover:bg-slate-600"
-            onclick={() => {
-              onAbortMission(mission!, 'stay-idle')
-              showAbortDialog = false
-            }}
+            onclick={() => confirmAbort('stay-idle')}
           >
             Abort and stay idle
           </button>
-          <button type="button" class="rounded px-3 py-2 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white" onclick={() => (showAbortDialog = false)}>
+          <button type="button" class="rounded px-3 py-2 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white" onclick={() => (abortTarget = undefined)}>
             Cancel
           </button>
         </div>
-      </dialog>
-    </div>
+    </dialog>
   {/if}
 {/if}

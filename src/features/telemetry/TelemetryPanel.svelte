@@ -28,6 +28,7 @@
 
   function getOrderLabel(order: Vehicle['order']): string {
     if (order.type === 'hold-position' && order.phase === 'transit') return 'En route to station'
+    if (order.type === 'orbit-contact' && order.phase === 'transit') return 'En route to contact'
     return ORDER_LABEL[order.type]
   }
 

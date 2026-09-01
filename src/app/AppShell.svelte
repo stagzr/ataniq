@@ -108,17 +108,21 @@
     if (selectedMissionId === mission.id) selectedMissionId = undefined
   }
 
-  function abortVehicleMission(mission: NonNullable<typeof selectedMission>, vehicleId: string) {
-    abortVehicleToIdle(vehicleId)
+  function abortVehicleMission(mission: NonNullable<typeof selectedMission>, vehicleId: string, outcome: 'return-to-base' | 'stay-idle') {
+    if (outcome === 'return-to-base') vehicleStore.sendCommand(vehicleId, { type: 'return-to-base' })
+    else abortVehicleToIdle(vehicleId)
     const remainingIds = mission.vehicleIds.filter((id) => id !== vehicleId)
     if (remainingIds.length) missionStore.updateMission({ ...mission, vehicleIds: remainingIds })
-    else abortMission(mission, 'stay-idle')
+    else {
+      missionStore.removeMission(mission.id)
+      if (selectedMissionId === mission.id) selectedMissionId = undefined
+    }
   }
 
   function abortCurrentVehicleMission(vehicle: NonNullable<typeof selectedVehicle>) {
     const missionId = 'missionId' in vehicle.order ? vehicle.order.missionId : undefined
     const mission = missionId ? missions[missionId] : undefined
-    if (mission) abortVehicleMission(mission, vehicle.id)
+    if (mission) abortVehicleMission(mission, vehicle.id, 'stay-idle')
     else abortVehicleToIdle(vehicle.id)
   }
 
@@ -213,11 +217,17 @@
   function dispatchFormationToContact(contactId: string, action: 'attack' | 'inspect') {
     const missionId = `mission-${Date.now()}`
     const vehicleIds = [...multiSelectedIds]
-    for (const id of vehicleIds) {
+    for (const [index, id] of vehicleIds.entries()) {
       if (action === 'attack') {
         vehicleStore.sendCommand(id, { type: 'intercept', contactId, mode: 'attack', missionId })
       } else {
-        vehicleStore.sendCommand(id, { type: 'orbit-contact', contactId, radiusDeg: INSPECT_ORBIT_RADIUS_DEG, missionId })
+        vehicleStore.sendCommand(id, {
+          type: 'orbit-contact',
+          contactId,
+          radiusDeg: INSPECT_ORBIT_RADIUS_DEG,
+          entryAngleDeg: (index / vehicleIds.length) * 360,
+          missionId,
+        })
       }
     }
     missionStore.addMission({ id: missionId, action, vehicleIds, contactId, createdAt: Date.now() })
