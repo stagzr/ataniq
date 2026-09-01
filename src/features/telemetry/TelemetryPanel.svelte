@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte'
-  import type { Vehicle } from '../../lib/types'
+  import type { FormationMission, Vehicle } from '../../lib/types'
   import { formatBattery, formatHeading, formatRelativeTime, formatSpeed } from '../../lib/formatters'
 
   export let vehicle: Vehicle | undefined = undefined
@@ -12,6 +12,7 @@
   export let onAbortCurrentMission: (vehicle: Vehicle) => void = () => {}
   export let onRenameVehicle: (id: string, name: string) => void = () => {}
   export let onStartAction: (id: string) => void = () => {}
+  export let missions: Record<string, FormationMission> = {}
 
   const ORDER_LABEL: Record<Vehicle['order']['type'], string> = {
     patrol: 'On patrol',
@@ -25,7 +26,13 @@
     return 'missionId' in order ? order.missionId : undefined
   }
 
+  function getOrderLabel(order: Vehicle['order']): string {
+    if (order.type === 'hold-position' && order.phase === 'transit') return 'En route to station'
+    return ORDER_LABEL[order.type]
+  }
+
   $: missionId = vehicle ? getMissionId(vehicle.order) : undefined
+  $: currentMission = missionId ? missions[missionId] : undefined
 
   let editingName = false
   let nameDraft = ''
@@ -71,12 +78,12 @@
             class="flex items-center gap-1 rounded bg-sky-600/80 px-2 py-0.5 text-xs font-medium text-white hover:bg-sky-500"
             onclick={() => onOpenMission(missionId!)}
           >
-            {ORDER_LABEL[vehicle.order.type]}
+            {currentMission?.name ?? getOrderLabel(vehicle.order)}
             <span aria-hidden="true">▸</span>
           </button>
         {:else}
           <span class="rounded bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-300">
-            {ORDER_LABEL[vehicle.order.type]}
+            {getOrderLabel(vehicle.order)}
           </span>
         {/if}
         <button

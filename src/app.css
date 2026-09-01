@@ -58,7 +58,24 @@ body {
   left: -6rem;
   width: 23rem;
   height: 14rem;
-  clip-path: polygon(0 20%, 13% 8%, 28% 14%, 40% 3%, 55% 15%, 70% 8%, 85% 25%, 100% 21%, 94% 47%, 100% 65%, 78% 72%, 64% 91%, 44% 82%, 27% 100%, 12% 79%, 0 84%);
+  clip-path: polygon(
+    0 20%,
+    13% 8%,
+    28% 14%,
+    40% 3%,
+    55% 15%,
+    70% 8%,
+    85% 25%,
+    100% 21%,
+    94% 47%,
+    100% 65%,
+    78% 72%,
+    64% 91%,
+    44% 82%,
+    27% 100%,
+    12% 79%,
+    0 84%
+  );
 }
 
 .login-island-two {
@@ -66,7 +83,23 @@ body {
   bottom: -4rem;
   width: 20rem;
   height: 15rem;
-  clip-path: polygon(5% 34%, 21% 14%, 37% 22%, 50% 4%, 65% 19%, 87% 13%, 96% 35%, 85% 53%, 100% 71%, 73% 79%, 61% 100%, 39% 88%, 19% 94%, 14% 66%, 0 51%);
+  clip-path: polygon(
+    5% 34%,
+    21% 14%,
+    37% 22%,
+    50% 4%,
+    65% 19%,
+    87% 13%,
+    96% 35%,
+    85% 53%,
+    100% 71%,
+    73% 79%,
+    61% 100%,
+    39% 88%,
+    19% 94%,
+    14% 66%,
+    0 51%
+  );
 }
 
 .login-island-three {
@@ -75,7 +108,19 @@ body {
   width: 8rem;
   height: 5rem;
   opacity: 0.32;
-  clip-path: polygon(4% 43%, 26% 14%, 50% 25%, 68% 4%, 94% 29%, 86% 54%, 100% 74%, 70% 88%, 42% 78%, 19% 100%, 0 75%);
+  clip-path: polygon(
+    4% 43%,
+    26% 14%,
+    50% 25%,
+    68% 4%,
+    94% 29%,
+    86% 54%,
+    100% 74%,
+    70% 88%,
+    42% 78%,
+    19% 100%,
+    0 75%
+  );
 }
 
 .login-vessel {
@@ -148,13 +193,27 @@ body {
 }
 
 @keyframes login-status-dots {
-  0% { clip-path: inset(0 100% 0 0); }
-  100% { clip-path: inset(0 0 0 0); }
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
 }
 
 @keyframes login-status-entry {
-  0% { opacity: 0; translate: 0 3px; }
-  12% { opacity: 0.58; translate: 0 0; }
-  55% { opacity: 0.3; }
-  100% { opacity: 0; }
+  0% {
+    opacity: 0;
+    translate: 0 3px;
+  }
+  12% {
+    opacity: 0.58;
+    translate: 0 0;
+  }
+  55% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0;
+  }
 }

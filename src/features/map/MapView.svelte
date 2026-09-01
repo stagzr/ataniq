@@ -147,6 +147,11 @@
     return 'Routine patrol'
   }
 
+  function getOrderLabel(vehicle: Vehicle): string {
+    if (vehicle.order.type === 'hold-position' && vehicle.order.phase === 'transit') return 'En route to station'
+    return ORDER_LABEL[vehicle.order.type]
+  }
+
   function renderVehiclePopup(vehicle: Vehicle): string {
     return `
       <div class="min-w-44 text-xs text-slate-800">
@@ -159,7 +164,7 @@
           <span class="text-slate-600">Heading</span><span class="font-mono text-slate-800">${formatHeading(vehicle.heading)}</span>
           <span class="text-slate-600">Battery</span><span class="font-mono text-slate-800">${formatBattery(vehicle.battery)}</span>
           <span class="text-slate-600">Signal</span><span class="font-mono text-slate-800">${Math.round(vehicle.connectivity)}%</span>
-          <span class="text-slate-600">Mission</span><span class="text-slate-800">${escapeHtml(ORDER_LABEL[vehicle.order.type])}</span>
+          <span class="text-slate-600">Mission</span><span class="text-slate-800">${escapeHtml(getOrderLabel(vehicle))}</span>
           <span class="text-slate-600">Target</span><span class="text-slate-800">${escapeHtml(getOrderDetail(vehicle))}</span>
         </div>
         <div class="mt-1 text-slate-700">Updated ${escapeHtml(formatRelativeTime(vehicle.lastUpdate))}</div>

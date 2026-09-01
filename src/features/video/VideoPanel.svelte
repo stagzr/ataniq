@@ -27,7 +27,7 @@
 
   function getVideoVariant(vehicle: Vehicle): VideoStreamVariant {
     if (isInspectingNearUnidentifiedContact(vehicle)) return 'arrived'
-    if (vehicle.speed > STILL_SPEED_KNOTS && vehicle.order.type !== 'hold-position') return 'default'
+    if (vehicle.speed > STILL_SPEED_KNOTS && (vehicle.order.type !== 'hold-position' || vehicle.order.phase === 'transit')) return 'default'
     if (isNearUnidentifiedContact(vehicle)) return 'arrived'
     return 'still'
   }

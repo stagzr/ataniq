@@ -401,6 +401,7 @@
       {:else}
         <TelemetryPanel
           vehicle={selectedVehicle}
+          {missions}
           onClearSelection={clearVehicleSelection}
           onReturnToBase={handleReturnToBase}
           isFollowing={followedTarget?.type === 'vehicle' && followedTarget.id === selectedVehicle?.id}

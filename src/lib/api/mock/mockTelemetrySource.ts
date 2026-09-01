@@ -150,6 +150,7 @@ export class MockTelemetrySource implements TelemetrySource {
               ? {
                   type: "hold-position",
                   point: command.point,
+                  phase: "transit",
                   embargoLine: command.embargoLine,
                   missionId: command.missionId,
                 }
@@ -405,7 +406,9 @@ export class MockTelemetrySource implements TelemetrySource {
     }
 
     // on station: hold still, and if embargoing, watch for contacts nearing the line
-    if (order.embargoLine) {
+    const holdingOrder = order.phase === "holding" ? order : { ...order, phase: "holding" as const };
+    this.orders.set(v.id, holdingOrder);
+    if (holdingOrder.embargoLine) {
       const alreadyHandled = new Set(
         this.vehicles
           .map((other) => this.orders.get(other.id))
@@ -421,8 +424,8 @@ export class MockTelemetrySource implements TelemetrySource {
           !alreadyHandled.has(c.id) &&
           distancePointToSegment(
             c.position,
-            order.embargoLine![0],
-            order.embargoLine![1],
+            holdingOrder.embargoLine![0],
+            holdingOrder.embargoLine![1],
           ) < EMBARGO_DETECT_DEG,
       );
       if (approaching) {
@@ -430,7 +433,7 @@ export class MockTelemetrySource implements TelemetrySource {
           type: "intercept",
           contactId: approaching.id,
           mode: "inspect",
-          returnOrder: order,
+          returnOrder: holdingOrder,
         };
         this.orders.set(v.id, interceptOrder);
         return { ...v, battery, connectivity, order: interceptOrder };
@@ -446,7 +449,7 @@ export class MockTelemetrySource implements TelemetrySource {
       connectivity,
       status: computeStatus(v.status, battery, connectivity),
       lastUpdate: Date.now(),
-      order,
+      order: holdingOrder,
     };
   }
 

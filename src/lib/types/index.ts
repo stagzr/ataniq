@@ -39,6 +39,7 @@ export type VehicleOrder =
   | {
       type: "hold-position";
       point: [number, number];
+      phase?: "transit" | "holding";
       embargoLine?: [[number, number], [number, number]];
       missionId?: string;
     };
