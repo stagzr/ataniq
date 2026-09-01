@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as maplibregl from 'maplibre-gl'
+  import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
   import 'maplibre-gl/dist/maplibre-gl.css'
   import { onDestroy, onMount } from 'svelte'
   import type { Contact, FormationGeometry, FormationMission, InterceptMarker, Vehicle } from '../../lib/types'
@@ -8,6 +9,8 @@
   import { VehicleAnimator } from './animation'
   import { vehicleStore } from '../fleet/vehicleStore'
   import { contactStore } from '../contacts/contactStore'
+
+  maplibregl.setWorkerUrl(maplibreWorkerUrl)
 
   export let selectedVehicleId: string | undefined = undefined
   export let onSelectVehicle: (id: string) => void = () => {}
@@ -30,7 +33,6 @@
   let map: maplibregl.Map
   let animator = new VehicleAnimator()
   let rafId: number
-  let initializationTimer: ReturnType<typeof setTimeout> | undefined
   let unsubscribeVehicles: () => void
   let unsubscribeContacts: () => void
   let styleLoaded = false
@@ -860,12 +862,7 @@
       } catch {}
     }
 
-    const retryInitializeMapLayers = () => {
-      if (layersInitialized) return
-      initializeMapLayers()
-      if (!layersInitialized) initializationTimer = setTimeout(retryInitializeMapLayers, 50)
-    }
-    initializationTimer = setTimeout(retryInitializeMapLayers, 0)
+    map.once('load', initializeMapLayers)
 
     unsubscribeVehicles = vehicleStore.subscribe((vehicles) => {
       latestVehicles = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
@@ -886,7 +883,6 @@
 
   onDestroy(() => {
     cancelAnimationFrame(rafId)
-    if (initializationTimer) clearTimeout(initializationTimer)
     unsubscribeVehicles?.()
     unsubscribeContacts?.()
     vehiclePopup?.remove()
